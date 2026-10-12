@@ -1,0 +1,189 @@
+{
+  "format": "zerno-noise-tile",
+  "version": 1,
+  "name": "шёлк · переливы",
+  "tile": {
+    "width": 512,
+    "height": 512
+  },
+  "render": {
+    "stopMix": "oklab",
+    "dither": {
+      "mode": "tpdf",
+      "amount": 1
+    },
+    "webpQuality": 1
+  },
+  "background": {
+    "h": 332,
+    "s": 0.17,
+    "l": 0.215,
+    "a": 1
+  },
+  "channels": [
+    {
+      "id": "c12",
+      "name": "Блик",
+      "enabled": true,
+      "blend": "normal",
+      "opacity": 1,
+      "noise": {
+        "type": "perlin",
+        "sizeX": 300,
+        "sizeY": 300,
+        "seed": 21,
+        "octaves": 3,
+        "gain": 0.5,
+        "lacunarity": 2,
+        "ridged": false,
+        "warpAmount": 80,
+        "warpSize": 300,
+        "worleyMode": "f1",
+        "worleyJitter": 1,
+        "grainHp": 3,
+        "shape": {
+          "contrast": 0,
+          "bias": 0,
+          "gamma": 1,
+          "invert": false,
+          "normalize": true
+        }
+      },
+      "low": {
+        "h": 300,
+        "s": 0.3,
+        "l": 0.1,
+        "a": 0.2
+      },
+      "high": {
+        "h": 22,
+        "s": 0.55,
+        "l": 0.78,
+        "a": 0.16
+      }
+    },
+    {
+      "id": "c13",
+      "name": "Уток",
+      "enabled": true,
+      "blend": "normal",
+      "opacity": 1,
+      "noise": {
+        "type": "value",
+        "sizeX": 2.5,
+        "sizeY": 96,
+        "seed": 77,
+        "octaves": 2,
+        "gain": 0.45,
+        "lacunarity": 2,
+        "ridged": false,
+        "warpAmount": 0,
+        "warpSize": 128,
+        "worleyMode": "f1",
+        "worleyJitter": 1,
+        "grainHp": 3,
+        "shape": {
+          "contrast": 0.3,
+          "bias": 0,
+          "gamma": 1,
+          "invert": false,
+          "normalize": true
+        }
+      },
+      "low": {
+        "h": 332,
+        "s": 0.22,
+        "l": 0.06,
+        "a": 0.16
+      },
+      "high": {
+        "h": 332,
+        "s": 0.26,
+        "l": 0.62,
+        "a": 0.12
+      }
+    },
+    {
+      "id": "c14",
+      "name": "Основа",
+      "enabled": true,
+      "blend": "normal",
+      "opacity": 1,
+      "noise": {
+        "type": "value",
+        "sizeX": 96,
+        "sizeY": 2.5,
+        "seed": 78,
+        "octaves": 2,
+        "gain": 0.45,
+        "lacunarity": 2,
+        "ridged": false,
+        "warpAmount": 0,
+        "warpSize": 128,
+        "worleyMode": "f1",
+        "worleyJitter": 1,
+        "grainHp": 3,
+        "shape": {
+          "contrast": 0.3,
+          "bias": 0,
+          "gamma": 1,
+          "invert": false,
+          "normalize": true
+        }
+      },
+      "low": {
+        "h": 332,
+        "s": 0.22,
+        "l": 0.06,
+        "a": 0.1
+      },
+      "high": {
+        "h": 332,
+        "s": 0.26,
+        "l": 0.62,
+        "a": 0.08
+      }
+    },
+    {
+      "id": "c15",
+      "name": "Зерно",
+      "enabled": true,
+      "blend": "normal",
+      "opacity": 1,
+      "noise": {
+        "type": "grain",
+        "sizeX": 1,
+        "sizeY": 1,
+        "seed": 512,
+        "octaves": 3,
+        "gain": 0.5,
+        "lacunarity": 2,
+        "ridged": false,
+        "warpAmount": 0,
+        "warpSize": 128,
+        "worleyMode": "f1",
+        "worleyJitter": 1,
+        "grainHp": 3,
+        "shape": {
+          "contrast": 0.3,
+          "bias": 0,
+          "gamma": 1,
+          "invert": false,
+          "normalize": true
+        }
+      },
+      "low": {
+        "h": 332,
+        "s": 0.04,
+        "l": 0,
+        "a": 0.04
+      },
+      "high": {
+        "h": 332,
+        "s": 0.04,
+        "l": 1,
+        "a": 0.04
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+/* ЗЕРНО · токены оформления.
+   Единственное место, где заданы цвета, радиусы и шрифты.
+   --grain подставляется из JS (makeChromeGrain) — плёнка на хроме панелей. */
+:root{
+  --bg:#08090b;
+  --panel:#0e1014;
+  --panel-2:#13161b;
+  --panel-3:#181c22;
+  --line:#1e232a;
+  --line-2:#2a313a;
+  --ink:#e7ebef;
+  --ink-2:#98a1ab;
+  --ink-3:#616a74;
+  --acc:#e8c547;
+  --acc-2:#f5dc8a;
+  --acc-dim:#5c4f1c;
+  --danger:#ff5f52;
+  --ok:#5fd39a;
+  --r:3px;
+  --mono:'IBM Plex Mono',ui-monospace,'Cascadia Mono',Consolas,monospace;
+  --sans:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+  --disp:'Unbounded','IBM Plex Sans',system-ui,sans-serif;
+  --grain:none;
+}

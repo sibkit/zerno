@@ -1,0 +1,148 @@
+{
+  "format": "zerno-noise-tile",
+  "version": 1,
+  "name": "карбон · плетение",
+  "tile": {
+    "width": 256,
+    "height": 256
+  },
+  "render": {
+    "stopMix": "oklab",
+    "dither": {
+      "mode": "tpdf",
+      "amount": 1
+    },
+    "webpQuality": 1
+  },
+  "background": {
+    "h": 252,
+    "s": 0.03,
+    "l": 0.115,
+    "a": 1
+  },
+  "channels": [
+    {
+      "id": "c20",
+      "name": "Плетение",
+      "enabled": true,
+      "blend": "normal",
+      "opacity": 1,
+      "noise": {
+        "type": "worley",
+        "sizeX": 19,
+        "sizeY": 19,
+        "seed": 300,
+        "octaves": 1,
+        "gain": 0.5,
+        "lacunarity": 2,
+        "ridged": false,
+        "warpAmount": 0,
+        "warpSize": 128,
+        "worleyMode": "f2f1",
+        "worleyJitter": 0.12,
+        "grainHp": 3,
+        "shape": {
+          "contrast": 0.15,
+          "bias": 0,
+          "gamma": 0.62,
+          "invert": false,
+          "normalize": true
+        }
+      },
+      "low": {
+        "h": 252,
+        "s": 0.05,
+        "l": 0.045,
+        "a": 0.6
+      },
+      "high": {
+        "h": 252,
+        "s": 0.07,
+        "l": 0.46,
+        "a": 0.12
+      }
+    },
+    {
+      "id": "c21",
+      "name": "Блик",
+      "enabled": true,
+      "blend": "screen",
+      "opacity": 1,
+      "noise": {
+        "type": "perlin",
+        "sizeX": 190,
+        "sizeY": 190,
+        "seed": 301,
+        "octaves": 2,
+        "gain": 0.5,
+        "lacunarity": 2,
+        "ridged": false,
+        "warpAmount": 30,
+        "warpSize": 190,
+        "worleyMode": "f1",
+        "worleyJitter": 1,
+        "grainHp": 3,
+        "shape": {
+          "contrast": 0,
+          "bias": 0,
+          "gamma": 1,
+          "invert": false,
+          "normalize": true
+        }
+      },
+      "low": {
+        "h": 200,
+        "s": 0.3,
+        "l": 0.8,
+        "a": 0
+      },
+      "high": {
+        "h": 200,
+        "s": 0.32,
+        "l": 0.86,
+        "a": 0.1
+      }
+    },
+    {
+      "id": "c22",
+      "name": "Зерно",
+      "enabled": true,
+      "blend": "normal",
+      "opacity": 1,
+      "noise": {
+        "type": "grain",
+        "sizeX": 1,
+        "sizeY": 1,
+        "seed": 302,
+        "octaves": 3,
+        "gain": 0.5,
+        "lacunarity": 2,
+        "ridged": false,
+        "warpAmount": 0,
+        "warpSize": 128,
+        "worleyMode": "f1",
+        "worleyJitter": 1,
+        "grainHp": 2,
+        "shape": {
+          "contrast": 0.3,
+          "bias": 0,
+          "gamma": 1,
+          "invert": false,
+          "normalize": true
+        }
+      },
+      "low": {
+        "h": 252,
+        "s": 0.04,
+        "l": 0,
+        "a": 0.05
+      },
+      "high": {
+        "h": 252,
+        "s": 0.04,
+        "l": 1,
+        "a": 0.05
+      }
+    }
+  ]
+}

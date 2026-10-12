@@ -1,0 +1,21 @@
+/* Каркас страницы: сетка приложения и три колонки.
+   Здесь только раскладка — размеры, потоки, переполнение.
+   Оформление самих панелей лежит в components/. */
+
+/* шапка · рабочая область · строка состояния */
+.app{display:grid;grid-template-rows:auto 1fr auto;height:100%}
+
+/* левая колонка · сцена · библиотека */
+.grid{display:grid;grid-template-columns:392px 1fr 276px;min-height:0;overflow:hidden}
+.grid.no-right{grid-template-columns:392px 1fr}
+.col{
+  background:var(--panel);border-right:1px solid var(--line);
+  overflow-y:auto;overflow-x:hidden;position:relative;
+}
+.col-right{border-right:0;border-left:1px solid var(--line)}
+.grid.no-right .col-right{display:none}
+
+@media (max-width:1400px){
+  .grid{grid-template-columns:360px 1fr 246px}
+  .grid.no-right{grid-template-columns:360px 1fr}
+}

@@ -1,0 +1,29 @@
+/* Верхняя панель: марка, имя пресета, кнопки экспорта. */
+.bar{
+  display:flex;align-items:center;gap:18px;
+  height:52px;padding:0 14px 0 18px;
+  background:var(--panel);
+  border-bottom:1px solid var(--line);
+  position:relative;z-index:20;
+}
+.bar::after{content:"";position:absolute;inset:0;background-image:var(--grain);
+  mix-blend-mode:overlay;opacity:.55;pointer-events:none}
+.brand{display:flex;align-items:baseline;gap:10px;flex:none;position:relative;z-index:1}
+.mark{
+  font:700 17px/1 var(--disp);letter-spacing:.14em;
+  color:var(--ink);
+  text-shadow:0 0 22px rgba(232,197,71,.18);
+}
+.mark b{color:var(--acc);font-weight:700}
+.sub{font:400 10px/1 var(--mono);letter-spacing:.1em;color:var(--ink-3);text-transform:uppercase}
+
+.bar-mid{flex:1;display:flex;justify-content:center;position:relative;z-index:1}
+.name-input{
+  width:min(360px,100%);text-align:center;
+  background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+  font:500 12px/1 var(--mono);letter-spacing:.04em;
+  padding:8px 12px;border-radius:var(--r);outline:none;
+}
+.name-input:focus{border-color:var(--acc-dim);background:var(--panel-3)}
+
+.bar-actions{display:flex;gap:6px;flex:none;position:relative;z-index:1}
