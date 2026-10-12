@@ -1,9 +1,9 @@
-// Генерация библиотеки пресетов noises/*.json с проверкой валидатором и швом.
+// Генерация библиотеки пресетов presets/*.json с проверкой валидатором и швом.
 const fs = require('fs');
 const path = require('path');
-const { ROOT, coreCode } = require('./load-app.js');
+const { ROOT, coreCode } = require('../tests/load-app.js');
 
-const OUT = ROOT + '/noises';
+const OUT = ROOT + '/presets';
 const code = coreCode();
 class ImageData { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); } }
 const M = new Function('ImageData', code + '\nreturn {validateDoc,serializeDoc,composeDoc,accToImageData,FORMAT,DOC_VERSION};')(ImageData);

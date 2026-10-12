@@ -2,6 +2,6 @@
   "name": "zerno-tests",
   "private": true,
   "description": "Проверки движка ЗЕРНО: ядро, паритет Rust/JS, интерфейс в jsdom",
-  "scripts": { "test": "node run-all.js" },
+  "scripts": { "test": "node tests/run-all.js" },
   "devDependencies": { "jsdom": "^30.0.1" }
 }

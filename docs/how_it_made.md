@@ -24,18 +24,24 @@ engine/               крейт zerno-engine: чистый движок, без
 app/                  крейт zerno: оболочка Tauri 2
   src/main.rs           команды render, engine_info; запуск
   src/files.rs          настройки, библиотека, открыть/сохранить, экспорт
-  tauri.conf.json       окно, CSP, frontendDist = ../ui
+  tauri.conf.json       окно, CSP, frontendDist = ui
   capabilities/         разрешения: core, dialog (ask/message)
-ui/                   интерфейс (вшивается в exe)
-  index.html            разметка и список подключений
-  css/                  tokens → base → layout → components/*
-  fonts/                IBM Plex Sans/Mono, Unbounded (латиница + кириллица)
-  js/                   color, model, doc, ui-kit, history, panels, engine,
-                        render, library, transfer, keys, boot
+  ui/                   интерфейс (вшивается в exe)
+    index.html            разметка и список подключений
+    css/                  tokens → base → layout → components/*
+    fonts/                IBM Plex Sans/Mono, Unbounded (латиница + кириллица)
+    js/                   color, model, doc, ui-kit, history, panels, engine,
+                          render, library, transfer, keys, boot
+presets/              пресеты из комплекта (генерирует tools/make-presets.js)
+docs/                 эта записка
+package.json          jsdom для проверок интерфейса (npm install)
 tests/                проверки на Node; tests/reference — эталон на JS
-tools/make-icon.js    иконка из пресета через zerno-render
-noises/               пресеты из комплекта
+tools/                make-presets.js — пресеты, make-icon.js — иконка
 ```
+
+Правило раскладки: у каждой папки одно назначение. Rust — `engine/` и `app/`,
+всё, что попадает в exe, — внутри `app/`; всё на Node вне приложения — `tests/`
+(проверки) и `tools/` (генераторы), зависимости Node — в корне.
 
 История: сначала всё считалось в браузере на JS, потом появился сервер на
 Zig (браузер — запасной путь), теперь — приложение на Rust + Tauri. Состояние
@@ -57,7 +63,7 @@ Zig (браузер — запасной путь), теперь — прило�
   а не считает чем-то другим.
 * **`tokens.css` — единственное место с константами оформления.**
 * **Пределы и перечисления — в одном месте на сторону.** В интерфейсе это
-  `ui/js/model.js` (типы шума, режимы, `TILE_MIN/TILE_MAX`, `MIN_CELL_PX`),
+  `app/ui/js/model.js` (типы шума, режимы, `TILE_MIN/TILE_MAX`, `MIN_CELL_PX`),
   в движке — `engine/src/doc.rs`. Тексты ошибок одинаковые.
 
 ---
@@ -121,7 +127,7 @@ Zig (браузер — запасной путь), теперь — прило�
 Заводские значения (`factoryNoise`) применяются **только** при явном создании
 канала пользователем, никогда — для «починки» импортируемых данных.
 
-Один и тот же валидатор написан дважды (JS в `ui/js/doc.js` и Rust в `engine/src/doc.rs`)
+Один и тот же валидатор написан дважды (JS в `app/ui/js/doc.js` и Rust в `engine/src/doc.rs`)
 и выдаёт совпадающие тексты ошибок — это проверяется тестом.
 
 ---
@@ -336,7 +342,7 @@ Ryzen 7 5800H (8 ядер / 16 потоков), пресет «тёмный хо
 
 * Многострочные `heredoc` и `python -c` в Git Bash портили `\n` в строках
   JS — в `boot.js` однажды оказались переводы строки внутри литералов.
-  После скриптовой правки: `node --check ui/js/*.js`.
+  После скриптовой правки: `node --check app/ui/js/*.js`.
 * Файлы держатся в LF (`.gitattributes`); скриптовые замены по CRLF молча
   ничего не находят.
 
@@ -354,7 +360,7 @@ Ryzen 7 5800H (8 ядер / 16 потоков), пресет «тёмный хо
 ```
 cargo test -p zerno-engine                 тесты движка
 cargo build --release -p zerno-engine      нужен zerno-render.exe для сверки
-cd tests && npm install                    один раз, ставит jsdom
+npm install                                один раз, ставит jsdom
 node tests/run-all.js                      все наборы на Node
 ```
 
@@ -363,7 +369,7 @@ node tests/run-all.js                      все наборы на Node
 | `engine/tests/fields.rs` | стыковка, контрольная обрезка, вырожденная ячейка, нечётные размеры, лимит октав, каналы после 64-го, кэш, ошибки запроса |
 | `engine/src/*.rs` (`#[cfg(test)]`) | гамут OKHSL, обратимость, разбор документа |
 | `tests/test-engine.js` | эталон: цвет, периодичность, композит, валидация |
-| `tests/make-presets.js` | генерирует `noises/*.json` и проверяет каждый |
+| `tools/make-presets.js` | генерирует `presets/*.json` и проверяет каждый |
 | `tests/test-parity.js` | попиксельная сверка Rust и эталона, ошибки, пакет, скорость |
 | `tests/test-ui.js` | интерфейс в jsdom с заглушкой `__TAURI__` |
 
@@ -376,7 +382,7 @@ node tests/run-all.js                      все наборы на Node
 файла и то, что ошибка движка видна, а следующая правка снова рисует.
 Тесты ждут **готовности** (`stState === 'готов'`), а не фиксированной паузы.
 
-`tests/load-app.js` читает список `<script src>` из `ui/index.html` и склеивает
+`tests/load-app.js` читает список `<script src>` из `app/ui/index.html` и склеивает
 файлы в том же порядке, что WebView. Эталон вставляется перед `doc.js`.
 
 Что тесты уже поймали (не гипотетически):

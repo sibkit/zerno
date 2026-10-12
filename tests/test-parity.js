@@ -65,9 +65,9 @@ function compare(a, b) {
   return { max, mean: sum / a.length, over1, pct: (over1 / a.length * 100) };
 }
 
-const files = fs.readdirSync(ROOT + '/noises').filter(f => /\.json$/i.test(f)).sort();
-const docs = files.map(f => ({ name: f, doc: JSON.parse(fs.readFileSync(ROOT + '/noises/' + f, 'utf8')) }));
-ok('в noises/ есть пресеты', docs.length > 0, docs.length);
+const files = fs.readdirSync(ROOT + '/presets').filter(f => /\.json$/i.test(f)).sort();
+const docs = files.map(f => ({ name: f, doc: JSON.parse(fs.readFileSync(ROOT + '/presets/' + f, 'utf8')) }));
+ok('в presets/ есть пресеты', docs.length > 0, docs.length);
 
 console.log('\n[1] Совпадение пиксель в пиксель (все пресеты, полный размер)');
 let worstMax = 0, worstMean = 0, worstName = '';

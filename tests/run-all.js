@@ -1,6 +1,6 @@
 // Прогон всех наборов проверок. Запуск: node tests/run-all.js
 //
-// Нужно: jsdom (cd tests && npm install) и собранный движок
+// Нужно: jsdom (npm install в корне проекта) и собранный движок
 // (cargo build --release -p zerno-engine) — без них прогон падает с объяснением,
 // а не пропускает наборы молча. Тесты на Rust: cargo test -p zerno-engine.
 const { execFileSync } = require('child_process');
@@ -12,7 +12,7 @@ const ROOT = path.resolve(HERE, '..');
 const EXE = path.join(ROOT, 'target', 'release', 'zerno-render' + (process.platform === 'win32' ? '.exe' : ''));
 
 const missing = [];
-if (!fs.existsSync(path.join(HERE, 'node_modules', 'jsdom'))) missing.push('jsdom:  cd tests && npm install');
+if (!fs.existsSync(path.join(ROOT, 'node_modules', 'jsdom'))) missing.push('jsdom:  npm install  (в корне проекта)');
 if (!fs.existsSync(EXE)) missing.push('движок: cargo build --release -p zerno-engine  (нет ' + EXE + ')');
 if (missing.length) {
   console.log('Не хватает для прогона:\n  ' + missing.join('\n  '));
@@ -21,7 +21,7 @@ if (missing.length) {
 
 const suites = [
   ['эталон JS        ', 'test-engine.js'],
-  ['пресеты          ', 'make-presets.js'],
+  ['пресеты          ', '../tools/make-presets.js'],
   ['паритет Rust / JS', 'test-parity.js'],
   ['интерфейс        ', 'test-ui.js'],
 ];

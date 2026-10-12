@@ -1,18 +1,18 @@
 // Сборка исходников для проверок вне приложения.
 //
-// Интерфейс — ui/index.html и ui/js/*.js; порядок модулей берём из самого
+// Интерфейс — app/ui/index.html и app/ui/js/*.js; порядок модулей берём из самого
 // index.html, чтобы проверки видели ровно то же, что WebView.
 // Эталонный движок на JS (tests/reference) в приложение не входит: им тесты
 // сверяют движок на Rust и подменяют его в проверках интерфейса.
 const fs = require('fs');
 
 const ROOT = require('path').resolve(__dirname, '..').split(String.fromCharCode(92)).join('/');
-const UI = ROOT + '/ui';
+const UI = ROOT + '/app/ui';
 const INDEX = UI + '/index.html';
 const REFERENCE = ['lattice.js', 'field.js', 'shape.js', 'composite.js', 'dither.js']
   .map(f => ROOT + '/tests/reference/' + f);
 
-/** Пути модулей (относительно ui/) в порядке подключения из index.html. */
+/** Пути модулей (относительно app/ui/) в порядке подключения из index.html. */
 function scriptSrcs() {
   const html = fs.readFileSync(INDEX, 'utf8');
   const out = [];

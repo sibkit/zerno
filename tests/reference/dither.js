@@ -1,7 +1,7 @@
 "use strict";
 /* ЗЕРНО · ЭТАЛОН ДЛЯ ТЕСТОВ: в приложение не входит, считает движок на Rust (engine/).
    дизеринг и вывод: аккумулятор → ImageData → canvas.
-   Зависит от ui/js/color.js, ui/js/model.js и composite.js. */
+   Зависит от app/ui/js/color.js, app/ui/js/model.js и composite.js. */
 
 
 /* Таблица линейный → sRGB, чтобы убрать Math.pow из горячего цикла. */

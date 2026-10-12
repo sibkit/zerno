@@ -1,7 +1,7 @@
 "use strict";
 /* ЗЕРНО · ЭТАЛОН ДЛЯ ТЕСТОВ: в приложение не входит, считает движок на Rust (engine/).
    форма значения и цветовая таблица канала.
-   Зависит от ui/js/color.js и ui/js/model.js. */
+   Зависит от app/ui/js/color.js и app/ui/js/model.js. */
 
 
 function shapeValue(t,sh){

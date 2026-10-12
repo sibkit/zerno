@@ -37,7 +37,7 @@ function applyLibrary(st){
     lib.items=[];
     renderLib();
     libStatus('Папка библиотеки не выбрана. Нажмите «Папка…» — подойдёт любая, '+
-              'например noises/ из папки проекта.');
+              'например presets/ из папки проекта.');
     return;
   }
   const res=parsePresetFiles(st.files);

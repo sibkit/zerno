@@ -1,4 +1,4 @@
-//! Замер рендера на пресетах из noises/: cargo run -p zerno-engine --release --example bench
+//! Замер рендера на пресетах из presets/: cargo run -p zerno-engine --release --example bench
 //!
 //! «Правка цвета» — поля уже в кэше, считается только композит.
 //! «Пересчёт шума» — кэш пуст, поля строятся заново.
@@ -17,7 +17,7 @@ fn best_ms(reps: usize, mut f: impl FnMut()) -> f64 {
 }
 
 fn main() {
-    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../noises/");
+    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../presets/");
     let preset = std::env::args().nth(1).unwrap_or_else(|| "01-tyomny-kholst.json".to_string());
     let text = std::fs::read_to_string(format!("{root}{preset}")).expect("пресет не читается");
     let doc: serde_json::Value = serde_json::from_str(&text).expect("пресет не разбирается");

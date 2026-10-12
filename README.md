@@ -3,13 +3,13 @@
 Настольное приложение: делает плитки шума, которые стыкуются друг с другом
 без видимых полос на стыке. Движок на Rust, оболочка — Tauri 2 (WebView2).
 
-Подробности реализации, найденные ловушки и замеры — в [how_it_made.md](how_it_made.md).
+Подробности реализации, найденные ловушки и замеры — в [docs/how_it_made.md](docs/how_it_made.md).
 
 ## Сборка и запуск
 
 Нужны Rust (нужная версия ставится сама по `rust-toolchain.toml`) и WebView2
 Runtime (в Windows 10/11 он уже есть). Node и tauri-cli не нужны: интерфейс —
-обычные файлы из `ui/`, они вшиваются в exe при сборке.
+обычные файлы из `app/ui/`, они вшиваются в exe при сборке.
 
 ```
 cargo build --release -p zerno     приложение: target/release/zerno.exe
@@ -17,21 +17,21 @@ cargo run --release -p zerno       собрать и запустить
 ```
 
 ```
-app/                  оболочка Tauri: окно, команды, файлы и диалоги
-app/src/main.rs       команды render и engine_info, запуск
-app/src/files.rs      библиотека, открыть/сохранить, экспорт PNG/WEBP, настройки
 engine/               движок (крейт zerno-engine), без зависимостей от Tauri
-engine/src/noise.rs   решётки, Перлин / Value / Ворлей / зерно, искажение домена
-engine/src/composite.rs  форма, цветовые таблицы, наложение, дизеринг
-engine/src/color.rs   Oklab / OKHSL
-engine/src/doc.rs     модель документа и строгий разбор JSON
-engine/src/render.rs  пакетный рендер, кэш полей, формат ответа ZRN1
-engine/src/bin/zerno-render.rs  рендер из командной строки (для тестов)
-ui/                   интерфейс: index.html, css/, js/, fonts/
-noises/               пресеты из комплекта
-tests/                проверки на Node (node tests/run-all.js)
-tests/reference/      эталонный движок на JS — только для сверки
-tools/make-icon.js    иконка приложения из пресета
+  src/noise.rs          решётки, Перлин / Value / Ворлей / зерно, искажение домена
+  src/composite.rs      форма, цветовые таблицы, наложение, дизеринг
+  src/color.rs          Oklab / OKHSL
+  src/doc.rs            модель документа и строгий разбор JSON
+  src/render.rs         пакетный рендер, кэш полей, формат ответа ZRN1
+  src/bin/zerno-render.rs  рендер из командной строки (для сверки)
+app/                  приложение (крейт zerno, Tauri 2)
+  src/main.rs           команды render и engine_info, запуск
+  src/files.rs          библиотека, открыть/сохранить, экспорт PNG/WEBP, настройки
+  ui/                   интерфейс: index.html, css/, js/, fonts/
+presets/              пресеты из комплекта
+docs/how_it_made.md   как устроено, решения, ловушки, замеры
+tests/                проверки на Node; tests/reference — эталонный движок на JS
+tools/                make-presets.js (пресеты), make-icon.js (иконка)
 ```
 
 ## Работа
@@ -140,7 +140,7 @@ tools/make-icon.js    иконка приложения из пресета
 ## Библиотека пресетов
 
 Библиотека — любая папка с `*.json`, её выбирают кнопкой «Папка…»; выбор
-запоминается (`%APPDATA%\com.sibkit.zerno\settings.json`). Подойдёт и `noises/`
+запоминается (`%APPDATA%\com.sibkit.zerno\settings.json`). Подойдёт и `presets/`
 из комплекта. Пока папка не выбрана, так и написано.
 
 * клик по миниатюре открывает пресет и связывает документ с его файлом —
@@ -227,7 +227,7 @@ overlay, hard-light, soft-light, add, subtract, darken, lighten, difference`;
 ```
 cargo test -p zerno-engine                    движок: стыковка, кэш, ошибки, каналы
 cargo build --release -p zerno-engine         нужен для сверки (zerno-render.exe)
-cd tests && npm install && cd ..              jsdom для проверок интерфейса
+npm install                                   jsdom для проверок интерфейса
 node tests/run-all.js                         эталон, пресеты, паритет Rust/JS, интерфейс
 ```
 

@@ -10,8 +10,8 @@ const { JSDOM, VirtualConsole } = require('jsdom');
 class NodeImageData { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); } }
 const REF = new Function('ImageData', coreCode() + '\nreturn {composeDoc,accToImageData,validateDoc};')(NodeImageData);
 
-const PRESETS = fs.readdirSync(ROOT + '/noises').filter(f => /\.json$/i.test(f)).sort()
-  .map(n => ({ name: n, text: fs.readFileSync(ROOT + '/noises/' + n, 'utf8') }));
+const PRESETS = fs.readdirSync(ROOT + '/presets').filter(f => /\.json$/i.test(f)).sort()
+  .map(n => ({ name: n, text: fs.readFileSync(ROOT + '/presets/' + n, 'utf8') }));
 const LIB_DIR = 'D:\\lib';
 
 const errors = [];

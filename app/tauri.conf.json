@@ -4,7 +4,7 @@
   "version": "2.0.0",
   "identifier": "com.sibkit.zerno",
   "build": {
-    "frontendDist": "../ui"
+    "frontendDist": "ui"
   },
   "app": {
     "withGlobalTauri": true,

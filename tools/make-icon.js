@@ -10,7 +10,7 @@ const ROOT = path.resolve(__dirname, '..');
 const CLI = path.join(ROOT, 'target', 'release', 'zerno-render.exe');
 if (!fs.existsSync(CLI)) throw new Error('нет ' + CLI + ' — соберите: cargo build -p zerno-engine --release');
 
-const PRESET = path.join(ROOT, 'noises', '05-shelk.json');
+const PRESET = path.join(ROOT, 'presets', '05-shelk.json');
 const doc = JSON.parse(fs.readFileSync(PRESET, 'utf8'));
 
 function render(side) {
