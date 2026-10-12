@@ -6,7 +6,7 @@
    Ctrl+O                         — открыть пресет
    Ctrl+E                         — экспорт PNG
    Ctrl+= / Ctrl+- / Ctrl+0       — масштаб сцены (и колесо над сценой)
-   F1                             — шпаргалка, Esc — закрыть
+   F1                             — справка (help.js), Esc — закрыть
 
    В текстовых полях (имя пресета, имя канала, HEX) Ctrl+Z/Y остаются
    родными для поля; числовые поля .num правят документ — там отмена общая. */
@@ -15,18 +15,7 @@ function textEditing(t){
   return t&&(t.tagName==='TEXTAREA'||(t.tagName==='INPUT'&&t.type==='text'&&!t.classList.contains('num')));
 }
 
-function toggleHelp(show){
-  const h=$('help');
-  h.hidden=show===undefined?!h.hidden:!show;
-}
-
 function initKeys(){
-  $('btnHelp').addEventListener('click',()=>toggleHelp());
-  $('help').addEventListener('click',e=>{ if(e.target===$('help')) toggleHelp(false); });
-  document.addEventListener('keydown',e=>{
-    if(e.key==='F1'){ e.preventDefault(); toggleHelp(); return; }
-    if(e.key==='Escape'&&!$('help').hidden){ e.preventDefault(); toggleHelp(false); }
-  });
   document.addEventListener('keydown',e=>{
     if(!(e.ctrlKey||e.metaKey)||e.altKey) return;
     const k=e.key.toLowerCase(), code=e.code;

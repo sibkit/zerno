@@ -121,7 +121,6 @@ function updateDirty(){
   $('nameWrap').classList.toggle('dirty',isDirty());
   const fn=$('fileName');
   fn.textContent=f?f.replace(/^.*[\\/]/,''):'не сохранён в файл';
-  fn.title=f||'Документ ещё не связан с файлом: «Сохранить» спросит, куда записать.';
 }
 
 /* ---------------- автосохранение сессии ---------------- */

@@ -74,10 +74,8 @@ async function renderLib(){
     cv.width=248; cv.height=152;   /* ровно 2× к CSS-размеру: без искажения пропорций */
     card.appendChild(cv);
     const nm=el('div','pre-n',it.doc.name);
-    nm.title=it.doc.name+'\n'+it.path;
     card.appendChild(nm);
     const rm=el('div','rm','✕');
-    rm.title='Удалить файл из папки';
     rm.addEventListener('click',e=>{ e.stopPropagation(); guard(()=>removePreset(it)); });
     card.appendChild(rm);
     card.addEventListener('click',()=>{

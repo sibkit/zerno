@@ -46,7 +46,7 @@ function buildLeft(){
 const TILE_PRESETS=[64,128,192,256,384,512,768,1024];
 
 function buildTileSection(root){
-  const s=makeSection(root,'tile','Плитка');
+  const s=makeSection(root,'tile','Плитка','tile');
   const chips=el('div','chips');
   for(const p of TILE_PRESETS){
     const c=el('div','chip',p+'²');
@@ -63,25 +63,22 @@ function buildTileSection(root){
     s.count.textContent=doc.tile.width+'×'+doc.tile.height;
     changed();
   };
-  makeRow(s.body,{label:'Ширина',min:TILE_MIN,max:TILE_MAX,step:1,hint:HINTS.tileSide,get:()=>doc.tile.width,set:v=>doc.tile.width=v,onInput:upd});
-  makeRow(s.body,{label:'Высота',min:TILE_MIN,max:TILE_MAX,step:1,hint:HINTS.tileSide,get:()=>doc.tile.height,set:v=>doc.tile.height=v,onInput:upd});
-  s.body.appendChild(el('div','hint',
-    'Стыковка точная при любом размере: решётка шума кратна плитке по построению.'));
+  makeRow(s.body,{label:'Ширина',min:TILE_MIN,max:TILE_MAX,step:1,get:()=>doc.tile.width,set:v=>doc.tile.width=v,onInput:upd});
+  makeRow(s.body,{label:'Высота',min:TILE_MIN,max:TILE_MAX,step:1,get:()=>doc.tile.height,set:v=>doc.tile.height=v,onInput:upd});
   s.count.textContent=doc.tile.width+'×'+doc.tile.height;
 }
 
 function buildBgSection(root){
-  const s=makeSection(root,'bg','Фон плитки');
+  const s=makeSection(root,'bg','Фон плитки','bg');
   makeColorEditor(s.body,'background','фон',doc.background,()=>{
     s.count.textContent=okhslToHex(doc.background);
     changed();
   });
-  s.body.appendChild(el('div','hint','A < 1 даёт прозрачный фон в PNG/WebP.'));
   s.count.textContent=okhslToHex(doc.background);
 }
 
 function buildChannelsSection(root){
-  const s=makeSection(root,'chans','Шумовые каналы');
+  const s=makeSection(root,'chans','Шумовые каналы','chans');
   const list=el('div','chans');
   s.body.appendChild(list);
   for(const ch of doc.channels) list.appendChild(buildCard(ch));
@@ -93,7 +90,6 @@ function buildChannelsSection(root){
     th.dataset.type=t;
     if(typeThumbs[t]) th.style.backgroundImage='url("'+typeThumbs[t]+'")';
     c.prepend(th);
-    c.dataset.hint='Добавить канал: '+NOISE_TYPES[t].label+'.';
     c.addEventListener('click',()=>{
       const ch=factoryChannel(t);
       cardState[ch.id]={open:true};
@@ -160,7 +156,6 @@ function buildCard(ch){
 
   const acts=el('div','card-a');
   const eye=el('button','ibtn'+(ch.enabled?' on':''),ch.enabled?'●':'○');
-  eye.title='Включить / выключить канал';
   eye.addEventListener('click',()=>{
     ch.enabled=!ch.enabled;
     eye.textContent=ch.enabled?'●':'○';
@@ -168,11 +163,11 @@ function buildCard(ch){
     card.classList.toggle('off',!ch.enabled);
     changed();
   });
-  const up=el('button','ibtn','↑'); up.title='Выше';
+  const up=el('button','ibtn','↑');
   up.addEventListener('click',()=>moveChannel(ch,-1));
-  const dn=el('button','ibtn','↓'); dn.title='Ниже';
+  const dn=el('button','ibtn','↓');
   dn.addEventListener('click',()=>moveChannel(ch,1));
-  const cp=el('button','ibtn','⧉'); cp.title='Дублировать';
+  const cp=el('button','ibtn','⧉');
   cp.addEventListener('click',()=>{
     const c=JSON.parse(JSON.stringify(ch));
     c.id=uid(); c.name=ch.name+' копия'; c.noise.seed=(Math.random()*2147483647)|0;
@@ -180,7 +175,7 @@ function buildCard(ch){
     doc.channels.splice(doc.channels.indexOf(ch)+1,0,c);
     buildLeft(); changed();
   });
-  const del=el('button','ibtn del','✕'); del.title='Удалить';
+  const del=el('button','ibtn del','✕');
   del.addEventListener('click',()=>{
     doc.channels.splice(doc.channels.indexOf(ch),1);
     delete cardState[ch.id]; delete cardRefs[ch.id];
@@ -188,7 +183,6 @@ function buildCard(ch){
   });
   acts.append(eye,up,dn,cp,del);
   head.append(cv,t,acts,el('span','card-chev'));
-  head.dataset.hint='Клик по карточке — развернуть или свернуть параметры канала. Имя редактируется прямо в заголовке.';
 
   head.addEventListener('click',e=>{
     if(e.target.closest('input,button')) return;
@@ -214,17 +208,16 @@ function fillCardBody(ch,body,warn){
   const upd=()=>changed();
   const rebuild=()=>{ fillCardBody(ch,body,warn); changed(); };
 
-  subHead(body,'Шум');
-  hint(makeSelect(body,'Тип',mapLabels(NOISE_TYPES),()=>n.type,v=>{
+  subHead(body,'Шум','noise');
+  makeSelect(body,'Тип',mapLabels(NOISE_TYPES),()=>n.type,v=>{
     n.type=v;
     if(v==='grain'&&n.sizeX>16){ n.sizeX=2; n.sizeY=2; }
     if(v!=='grain'&&n.sizeX<8){ n.sizeX=64; n.sizeY=64; }
-  },rebuild),HINTS.type);
+  },rebuild);
 
   cardRefs[ch.id].sizeRows=[sizeRow(body,n,'x',upd),sizeRow(body,n,'y',upd)];
   const link=el('div','chips');
   const lb=el('div','chip','связать X=Y');
-  lb.dataset.hint='Сделать размер по Y таким же, как по X.';
   lb.addEventListener('click',()=>{ n.sizeY=n.sizeX; rebuild(); });
   link.appendChild(lb);
   body.appendChild(link);
@@ -232,82 +225,39 @@ function fillCardBody(ch,body,warn){
   seedRow(body,n,upd);
 
   if(info.octaves){
-    makeRow(body,{label:'Октавы',min:1,max:10,step:1,get:()=>n.octaves,set:v=>n.octaves=v,onInput:upd,hint:HINTS.octaves});
-    makeRow(body,{label:'Затухание',min:0,max:1,step:0.01,get:()=>n.gain,set:v=>n.gain=v,onInput:upd,hint:HINTS.gain});
-    makeRow(body,{label:'Лакунарн.',min:2,max:4,step:1,get:()=>n.lacunarity,set:v=>n.lacunarity=v,onInput:upd,hint:HINTS.lacunarity});
+    makeRow(body,{label:'Октавы',min:1,max:10,step:1,get:()=>n.octaves,set:v=>n.octaves=v,onInput:upd});
+    makeRow(body,{label:'Затухание',min:0,max:1,step:0.01,get:()=>n.gain,set:v=>n.gain=v,onInput:upd});
+    makeRow(body,{label:'Лакунарн.',min:2,max:4,step:1,get:()=>n.lacunarity,set:v=>n.lacunarity=v,onInput:upd});
   }
-  if(info.ridged) hint(makeCheck(body,'Гребни (ridged)',()=>n.ridged,v=>n.ridged=v,upd).el,HINTS.ridged);
+  if(info.ridged) makeCheck(body,'Гребни (ridged)',()=>n.ridged,v=>n.ridged=v,upd);
 
   if(n.type==='worley'){
-    hint(makeSelect(body,'Режим',WORLEY_MODES,()=>n.worleyMode,v=>n.worleyMode=v,upd),HINTS.worleyMode);
-    makeRow(body,{label:'Разброс',min:0,max:1,step:0.01,get:()=>n.worleyJitter,set:v=>n.worleyJitter=v,onInput:upd,hint:HINTS.jitter});
+    makeSelect(body,'Режим',WORLEY_MODES,()=>n.worleyMode,v=>n.worleyMode=v,upd);
+    makeRow(body,{label:'Разброс',min:0,max:1,step:0.01,get:()=>n.worleyJitter,set:v=>n.worleyJitter=v,onInput:upd});
   }
   if(n.type==='grain'){
-    makeRow(body,{label:'ВЧ-фильтр',min:0,max:64,step:1,get:()=>n.grainHp,set:v=>n.grainHp=v,onInput:upd,hint:HINTS.grainHp});
-    body.appendChild(el('div','hint','0 — белый шум. >0 — «синее» зерно: убирает низкие частоты, из-за которых повтор плитки становится заметен.'));
+    makeRow(body,{label:'ВЧ-фильтр',min:0,max:64,step:1,get:()=>n.grainHp,set:v=>n.grainHp=v,onInput:upd});
   }
   if(info.warp){
-    makeRow(body,{label:'Искажение',min:0,max:400,step:1,get:()=>n.warpAmount,set:v=>n.warpAmount=v,onInput:upd,hint:HINTS.warp});
+    makeRow(body,{label:'Искажение',min:0,max:400,step:1,get:()=>n.warpAmount,set:v=>n.warpAmount=v,onInput:upd});
     if(n.warpAmount>0)
-      makeRow(body,{label:'Масштаб иск.',min:2,max:2048,step:1,get:()=>n.warpSize,set:v=>n.warpSize=v,onInput:upd,hint:HINTS.warpSize});
+      makeRow(body,{label:'Масштаб иск.',min:2,max:2048,step:1,get:()=>n.warpSize,set:v=>n.warpSize=v,onInput:upd});
   }
 
-  subHead(body,'Форма');
+  subHead(body,'Форма','shape');
   const sh=n.shape;
-  makeRow(body,{label:'Контраст',min:-1,max:1,step:0.01,get:()=>sh.contrast,set:v=>sh.contrast=v,onInput:upd,hint:HINTS.contrast});
-  makeRow(body,{label:'Смещение',min:-0.5,max:0.5,step:0.005,get:()=>sh.bias,set:v=>sh.bias=v,onInput:upd,hint:HINTS.bias});
-  makeRow(body,{label:'Гамма',min:0.1,max:8,step:0.01,get:()=>sh.gamma,set:v=>sh.gamma=v,onInput:upd,hint:HINTS.gamma});
-  hint(makeCheck(body,'Инверсия',()=>sh.invert,v=>sh.invert=v,upd).el,HINTS.invert);
-  hint(makeCheck(body,'Нормализация диапазона',()=>sh.normalize,v=>sh.normalize=v,upd).el,HINTS.normalize);
+  makeRow(body,{label:'Контраст',min:-1,max:1,step:0.01,get:()=>sh.contrast,set:v=>sh.contrast=v,onInput:upd});
+  makeRow(body,{label:'Смещение',min:-0.5,max:0.5,step:0.005,get:()=>sh.bias,set:v=>sh.bias=v,onInput:upd});
+  makeRow(body,{label:'Гамма',min:0.1,max:8,step:0.01,get:()=>sh.gamma,set:v=>sh.gamma=v,onInput:upd});
+  makeCheck(body,'Инверсия',()=>sh.invert,v=>sh.invert=v,upd);
+  makeCheck(body,'Нормализация диапазона',()=>sh.normalize,v=>sh.normalize=v,upd);
 
-  subHead(body,'Цвет');
+  subHead(body,'Цвет','color');
   buildStops(body,ch,()=>{ updateRamp(ch); upd(); });
 
-  subHead(body,'Слой');
-  hint(makeSelect(body,'Смешив.',BLEND_MODES,()=>ch.blend,v=>ch.blend=v,upd),HINTS.blend);
-  makeRow(body,{label:'Непрозр.',min:0,max:1,step:0.005,get:()=>ch.opacity,set:v=>ch.opacity=v,onInput:upd,hint:HINTS.opacity});
-}
-
-/* Пояснения к параметрам — показываются в строке подсказок внизу окна. */
-const HINTS={
-  type:'Перлин — облака, Value — мягкие пятна, Ворлей — пятна и ячейки вокруг случайных точек, Зерно — плёночное зерно.',
-  size:'Размер пятна, px. На плитку ложится целое число ячеек — иначе был бы шов, поэтому размер меняется ступенями. Под подписью — сколько ячеек сейчас.',
-  grainSize:'Размер зерна, px. На плитку ложится целое число зёрен, поэтому размер меняется ступенями.',
-  seed:'Номер варианта случайного узора: тот же номер — тот же узор. ⟳ — новый случайный.',
-  octaves:'Сколько слоёв всё более мелких деталей наложено друг на друга. Больше — богаче мелочь.',
-  gain:'Во сколько раз каждая следующая октава слабее предыдущей (gain).',
-  lacunarity:'Во сколько раз каждая следующая октава мельче предыдущей (lacunarity).',
-  ridged:'Гребни: вместо облаков — складки и хребты (шум отражается от середины).',
-  worleyMode:'F1 — пятна вокруг точек, F2 — расстояние до второй точки, F2−F1 — границы ячеек: трещины, сетка.',
-  jitter:'Насколько точки сдвинуты от центров ячеек: 0 — ровная сетка, 1 — полный беспорядок.',
-  grainHp:'Фильтр высоких частот, радиус в px: убирает крупные пятна из зерна, повтор плитки становится незаметнее.',
-  warp:'Искажение: узор сдвигается другим, крупным шумом — линии становятся текучими, «мраморными». Сила сдвига, px.',
-  warpSize:'Размер волн искажения, px.',
-  contrast:'Контраст: растягивает (>0) или сжимает (<0) разброс значений вокруг середины.',
-  bias:'Смещение: сдвигает весь узор к цвету слабого или сильного шума.',
-  gamma:'Гамма: больше 1 — больше цвета слабого шума, меньше 1 — больше цвета сильного.',
-  invert:'Инверсия: слабые и сильные места меняются местами.',
-  normalize:'Нормализация: фактический разброс шума растягивается на всю шкалу цветов.',
-  blend:'Как канал ложится на то, что под ним. Каналы накладываются сверху вниз по списку.',
-  opacity:'Непрозрачность канала целиком.',
-  stopLow:'Цвет там, где шум слабый (значение 0). Клик — правка цвета.',
-  stopHigh:'Цвет там, где шум сильный (значение 1). Клик — правка цвета.',
-  stopRamp:'Как цвет меняется от слабого шума к сильному.',
-  stopSwap:'Поменять цвета местами.',
-  tileSide:'Сторона плитки, px. Стыковка точная при любом размере.',
-  stopMix:'В каком пространстве смешиваются два цвета канала: OKLab — ровно на глаз, линейный sRGB — как свет физически.',
-  dither:'Дизеринг убирает полосы на плавных переходах при переводе в 8 бит.',
-  ditherAmount:'Сила дизеринга, в единицах младшего бита.',
-  webpQuality:'Качество WEBP: 1.00 — без потерь.'
-};
-
-/** Пояснение для строки подсказок — на строку поля или флажок целиком. */
-function hint(node,text){
-  if(!text) throw new Error('hint: пустое пояснение');
-  const host=node.classList.contains('row')||node.classList.contains('chk')?node:node.closest('.row');
-  if(!host) throw new Error('hint: элемент не в строке поля');
-  host.dataset.hint=text;
-  return node;
+  subHead(body,'Слой','layer');
+  makeSelect(body,'Смешив.',BLEND_MODES,()=>ch.blend,v=>ch.blend=v,upd);
+  makeRow(body,{label:'Непрозр.',min:0,max:1,step:0.005,get:()=>ch.opacity,set:v=>ch.opacity=v,onInput:upd});
 }
 
 function plural(n,one,few,many){
@@ -331,8 +281,7 @@ function sizeRow(body,n,axis,upd){
     min:()=>D()/maxCellsFor(n.type,D()), max:()=>D(),
     snap:v=>D()/cellsFor(n.type,v,D()),
     get:()=>n[key], set:v=>{ n[key]=v; }, onInput:upd,
-    note:()=>{ const c=cellsFor(n.type,n[key],D()); return c+' '+plural(c,'ячейка','ячейки','ячеек'); },
-    hint:grain?HINTS.grainSize:HINTS.size
+    note:()=>{ const c=cellsFor(n.type,n[key],D()); return c+' '+plural(c,'ячейка','ячейки','ячеек'); }
   });
 }
 
@@ -344,20 +293,17 @@ function buildStops(body,ch,onChange){
   const st=cardState[ch.id];
   const bar=el('div','stops');
   const ed=el('div','stops-ed');
-  const mk=(k,txt,h)=>{
+  const mk=(k,txt)=>{
     const b=el('button','stop stop-'+k);
     const sw=el('span','ok-sw'), i=document.createElement('i');
     sw.appendChild(i);
     b.append(sw,el('span','stop-t',txt));
-    b.dataset.hint=h;
     b.addEventListener('click',()=>{ st.stop=st.stop===k?null:k; paint(); showEditor(); });
     return {b,i};
   };
-  const lo=mk('low','слабый',HINTS.stopLow), hi=mk('high','сильный',HINTS.stopHigh);
+  const lo=mk('low','слабый'), hi=mk('high','сильный');
   const ramp=el('div','stops-ramp');
-  ramp.dataset.hint=HINTS.stopRamp;
   const swap=el('button','ibtn','⇄');
-  swap.dataset.hint=HINTS.stopSwap;
   swap.addEventListener('click',()=>{
     const a=ch.low; ch.low=ch.high; ch.high=a;
     paint(); showEditor(); onChange();
@@ -403,7 +349,6 @@ function mapLabels(types){
 function seedRow(parent,n,onInput){
   const r=el('div','row');
   r.appendChild(el('label',null,'Сид'));
-  r.dataset.hint=HINTS.seed;
   const inp=document.createElement('input');
   inp.type='text'; inp.className='num'; inp.spellcheck=false;
   inp.style.textAlign='left'; inp.style.cursor='text';
@@ -423,7 +368,6 @@ function seedRow(parent,n,onInput){
   });
   inp.addEventListener('blur',()=>{ inp.classList.remove('bad'); inp.value=String(n.seed); });
   const b=el('button','btn sm','⟳');
-  b.title='Новый случайный сид';
   b.style.width='100%'; b.style.justifyContent='center';
   b.addEventListener('click',()=>{
     n.seed=(Math.random()*2147483647)|0;
@@ -434,17 +378,14 @@ function seedRow(parent,n,onInput){
 }
 
 function buildOutSection(root){
-  const s=makeSection(root,'out','Вывод');
+  const s=makeSection(root,'out','Вывод','out');
   const upd=()=>changed();
-  hint(makeSelect(s.body,'Смешив.',STOP_MIX,()=>doc.render.stopMix,v=>doc.render.stopMix=v,()=>{ buildLeft(); changed(); }),HINTS.stopMix);
-  s.body.appendChild(el('div','hint','Переход от цвета слабого шума к цвету сильного. Режимы наложения слоёв всегда считаются в линейном свете.'));
-  subHead(s.body,'Дизеринг');
-  hint(makeSelect(s.body,'Режим',DITHER_MODES,()=>doc.render.dither.mode,v=>doc.render.dither.mode=v,()=>{ buildLeft(); changed(); }),HINTS.dither);
+  makeSelect(s.body,'Смешив.',STOP_MIX,()=>doc.render.stopMix,v=>doc.render.stopMix=v,()=>{ buildLeft(); changed(); });
+  subHead(s.body,'Дизеринг',null);
+  makeSelect(s.body,'Режим',DITHER_MODES,()=>doc.render.dither.mode,v=>doc.render.dither.mode=v,()=>{ buildLeft(); changed(); });
   if(doc.render.dither.mode!=='off')
-    makeRow(s.body,{label:'Сила, LSB',min:0,max:4,step:0.05,get:()=>doc.render.dither.amount,set:v=>doc.render.dither.amount=v,onInput:upd,hint:HINTS.ditherAmount});
-  s.body.appendChild(el('div','hint','Убирает полосы (бэндинг) на плавных градиентах при переводе в 8 бит.'));
-  subHead(s.body,'WebP');
-  makeRow(s.body,{label:'Качество',min:0,max:1,step:0.01,get:()=>doc.render.webpQuality,set:v=>doc.render.webpQuality=v,hint:HINTS.webpQuality});
-  s.body.appendChild(el('div','hint','1.00 — Chromium кодирует WebP без потерь.'));
+    makeRow(s.body,{label:'Сила, LSB',min:0,max:4,step:0.05,get:()=>doc.render.dither.amount,set:v=>doc.render.dither.amount=v,onInput:upd});
+  subHead(s.body,'WebP',null);
+  makeRow(s.body,{label:'Качество',min:0,max:1,step:0.01,get:()=>doc.render.webpQuality,set:v=>doc.render.webpQuality=v});
 }
 

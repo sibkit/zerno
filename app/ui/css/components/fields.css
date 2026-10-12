@@ -64,6 +64,5 @@ option{background:var(--panel-2)}
   font:400 var(--fs-xs)/1.4 var(--sans);color:var(--warn);background:#1c1608;border:1px solid #3d3111;
   padding:7px 9px;border-radius:3px;margin:6px 0 2px;
 }
-.hint{font:400 var(--fs-xs)/1.45 var(--sans);color:var(--ink-3);padding:6px 0 0}
 /* короткая строка под подписью: «3 ячейки» у размера */
 .row-note{display:block;font:400 10px/1.2 var(--mono);color:var(--ink-3);margin-top:2px}

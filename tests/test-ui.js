@@ -95,7 +95,7 @@ win.__TAURI__ = {
   webview: { getCurrentWebview: () => ({ onDragDropEvent: async cb => { dropHandler = cb; return () => {}; } }) }
 };
 
-try { win.eval(appCode() + ';window.__api={get doc(){return doc;},serializeDoc:serializeDoc};'); } catch (err) { errors.push('eval: ' + err.stack); }
+try { win.eval(appCode() + ';window.__api={get doc(){return doc;},serializeDoc:serializeDoc,helpBtn:helpBtn};'); } catch (err) { errors.push('eval: ' + err.stack); }
 
 const D = win.document;
 const $ = id => D.getElementById(id);
@@ -275,7 +275,6 @@ const lastCall = cmd => calls.filter(c => c.cmd === cmd).pop();
        row.querySelector('.row-note').textContent.indexOf(String(c)) === 0, row.querySelector('.row-note').textContent);
     setText(num, '1000000'); await step(100);
     ok('слишком большой размер — одна ячейка на плитку', api().doc.channels[0].noise.sizeX === W, api().doc.channels[0].noise.sizeX);
-    ok('пояснение к размеру есть', /ступенями/.test(row.dataset.hint || ''));
     ok('тип не сменился', api().doc.channels[0].noise.type === t);
     drainErrors('размер по ступеням без ошибок');
   }
@@ -510,40 +509,64 @@ const lastCall = cmd => calls.filter(c => c.cmd === cmd).pop();
     drainErrors('крошечная плитка без ошибок');
   }
 
-  console.log('\n[R] Подсказки, мышь, шпаргалка, миниатюры типов');
+  console.log('\n[R] Справка, мышь, миниатюры типов');
   {
-    const over = el => el.dispatchEvent(new win.MouseEvent('mouseover', { bubbles: true }));
-    const idle = $('stHint').textContent;
-    over($('btnPng'));
-    ok('наведение на кнопку — пояснение в строке подсказок', /PNG/.test($('stHint').textContent) && $('stHint').classList.contains('on'),
-       $('stHint').textContent);
-    ok('системная подсказка снята (title перенесён)', !$('btnPng').hasAttribute('title') && /PNG/.test($('btnPng').dataset.hint));
-    const contrast = Array.from(cards()[0].querySelectorAll('.row')).find(r => r.querySelector('label').textContent === 'Контраст');
-    over(contrast.querySelector('input[type=range]'));
-    ok('наведение на ползунок — пояснение к параметру', /Контраст/.test($('stHint').textContent), $('stHint').textContent);
-    over($('colLeft'));
-    ok('без пояснения — исходный текст строки', $('stHint').textContent === idle && !$('stHint').classList.contains('on'));
+    const shown = () => Array.from($('helpBody').children).filter(a => !a.hidden).map(a => a.dataset.topic);
+    const navOn = () => Array.from($('helpNav').querySelectorAll('button.on')).map(b => b.dataset.topic);
+    ok('подсказок нет: ни title, ни data-hint, ни строки подсказок',
+       D.querySelectorAll('[title],[data-hint]').length === 0 && !$('stHint'),
+       Array.from(D.querySelectorAll('[title],[data-hint]')).map(e => e.tagName + '#' + e.id + '.' + e.className).join(' '));
+    const topics = Array.from($('helpBody').children).map(a => a.dataset.topic);
+    ok('оглавление построено по разделам', $('helpNav').children.length === topics.length && topics.length >= 10, topics.join(','));
+
+    D.body.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'F1', code: 'F1', bubbles: true, cancelable: true }));
+    ok('F1 открывает справку на «Начало»', !$('help').hidden && shown().join() === 'start' && navOn().join() === 'start', shown().join());
+    D.body.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
+    ok('Esc закрывает', $('help').hidden);
+    $('btnHelp').click();
+    ok('кнопка «?» сверху открывает «Начало»', !$('help').hidden && shown().join() === 'start');
+    $('helpBody').querySelector('article[data-topic="start"] a[data-go="color"]').click();
+    ok('ссылка внутри справки переходит в раздел', shown().join() === 'color' && navOn().join() === 'color', shown().join());
+    $('helpNav').querySelector('button[data-topic="keys"]').click();
+    ok('оглавление переключает раздел', shown().join() === 'keys');
+    $('help').click();
+    ok('клик мимо окна закрывает', $('help').hidden);
+
+    /* значки групп: в разделах колонки и в подгруппах карточки */
+    const secHelp = Array.from($('colLeft').querySelectorAll('.sec-h .help-i')).map(b => b.dataset.help);
+    ok('у каждого раздела колонки — значок справки', secHelp.join() === 'tile,bg,chans,out', secHelp.join());
+    const subHelp = Array.from(cards()[0].querySelectorAll('.sub-h .help-i')).map(b => b.dataset.help);
+    ok('у подгрупп карточки — свои разделы', subHelp.join() === 'noise,shape,color,layer', subHelp.join());
+    const tileSec = $('colLeft').querySelector('.sec');
+    const wasClosed = tileSec.classList.contains('closed');
+    tileSec.querySelector('.sec-h .help-i').click();
+    ok('значок раздела открывает его справку и не сворачивает раздел',
+       !$('help').hidden && shown().join() === 'tile' && tileSec.classList.contains('closed') === wasClosed);
+    $('helpClose').click();
+    ok('✕ закрывает', $('help').hidden);
+    cards()[0].querySelector('.sub-h .help-i[data-help="color"]').click();
+    ok('значок «Цвет» в карточке открывает «Цвет»', shown().join() === 'color');
+    $('helpClose').click();
+    D.querySelector('.stage-bar .help-i').click();
+    ok('значок на панели сцены открывает «Сцена»', shown().join() === 'stage');
+    $('helpClose').click();
+    D.querySelector('.lib-t .help-i').click();
+    ok('значок библиотеки открывает «Библиотека»', shown().join() === 'lib');
+    $('helpClose').click();
+    let threw = false;
+    try { api().helpBtn('нет-такого'); } catch (e) { threw = /нет раздела/.test(e.message); }
+    ok('значок на несуществующий раздел — исключение', threw);
 
     $('stageView').dispatchEvent(new win.WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true }));
     ok('колесо без Ctrl увеличивает', $('zval').textContent !== '100%', $('zval').textContent);
     $('stageView').dispatchEvent(new win.MouseEvent('dblclick', { bubbles: true }));
     ok('двойной клик — 1:1', $('zval').textContent === '100%', $('zval').textContent);
 
-    D.body.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'F1', code: 'F1', bubbles: true, cancelable: true }));
-    ok('F1 открывает шпаргалку', !$('help').hidden);
-    D.body.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
-    ok('Esc закрывает', $('help').hidden);
-    $('btnHelp').click();
-    ok('кнопка «?» открывает', !$('help').hidden);
-    $('help').click();
-    ok('клик мимо окна закрывает', $('help').hidden);
-
     const thumbs = Array.from($('colLeft').querySelectorAll('.chip-thumb'));
     ok('у кнопок «+ канал» есть миниатюры типов', thumbs.length === 4 && thumbs.every(t => /url\("data:image\/png/.test(t.style.backgroundImage)),
        thumbs.map(t => t.style.backgroundImage.slice(0, 20)).join(' | '));
-    const head = cards()[0].querySelector('.card-h');
-    ok('у заголовка карточки есть стрелка и пояснение', !!head.querySelector('.card-chev') && /развернуть/.test(head.dataset.hint || ''));
-    drainErrors('подсказки и мышь без ошибок');
+    ok('у заголовка карточки есть стрелка', !!cards()[0].querySelector('.card-h .card-chev'));
+    drainErrors('справка и мышь без ошибок');
   }
 
   console.log('\n[Q] Сессия переживает перезапуск');

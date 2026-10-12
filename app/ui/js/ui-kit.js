@@ -29,26 +29,6 @@ function toast(msg,isErr){
   if(isErr) console.error(msg);
 }
 
-/**
- * Строка подсказок внизу окна: наведение на элемент с пояснением (data-hint
- * или title) сразу показывает его там. title переносится в data-hint, чтобы
- * поверх не всплывала ещё и системная подсказка с задержкой.
- */
-function initHints(){
-  const out=$('stHint');
-  const idle=out.textContent;
-  document.addEventListener('mouseover',e=>{
-    const t=e.target.closest('[data-hint],[title]');
-    if(t&&t.hasAttribute('title')){
-      if(t.title) t.dataset.hint=t.title;
-      t.removeAttribute('title');
-    }
-    const txt=t&&t.dataset.hint;
-    out.textContent=txt||idle;
-    out.classList.toggle('on',!!txt);
-  });
-}
-
 /** Числовое поле: перетаскивание по горизонтали меняет значение.
     pos/val — перевод в шкалу ползунка и обратно (у логарифмической шкалы
     перетаскивание тоже идёт по ней), span — ширина шкалы. */
@@ -81,13 +61,12 @@ function attachScrub(input,get,pos,val,span,commit){
 
 /**
  * Строка «подпись — слайдер — число».
- * o: {label,min,max,step,get,set,onInput,track,decimals,snapInt,hint,
+ * o: {label,min,max,step,get,set,onInput,track,decimals,snapInt,
  *     log,snap,note}
  *   min/max — числа или функции (границы, зависящие от плитки);
  *   log     — ползунок в логарифмической шкале (для размеров);
  *   snap    — v → ближайшее допустимое значение (ступени);
- *   note    — () → короткая строка под подписью;
- *   hint    — пояснение для строки подсказок внизу окна.
+ *   note    — () → короткая строка под подписью.
  */
 function makeRow(parent,o){
   const r=el('div','row');
@@ -99,7 +78,6 @@ function makeRow(parent,o){
   const num=document.createElement('input');
   num.type='text'; num.className='num'; num.inputMode='decimal'; num.spellcheck=false;
   r.append(lab,rng,num);
-  if(o.hint) r.dataset.hint=o.hint;
   parent.appendChild(r);
   const dec=o.decimals!==undefined?o.decimals:decimalsFor(o.step);
   const snapInt=o.snapInt!==undefined?o.snapInt:(o.step>=1);
@@ -167,7 +145,13 @@ function makeCheck(parent,label,get,set,onInput){
   return {refresh:()=>{inp.checked=get();},el:l};
 }
 
-function subHead(parent,txt){ parent.appendChild(el('div','sub-h',txt)); }
+/** Заголовок подгруппы; topic — раздел справки для значка «?» или null. */
+function subHead(parent,txt,topic){
+  if(topic===undefined) throw new Error('subHead «'+txt+'»: раздел справки не указан (строка или null)');
+  const h=el('div','sub-h',txt);
+  if(topic!==null) h.appendChild(helpBtn(topic));
+  parent.appendChild(h);
+}
 
 /* ---------------------- редактор цвета: OKHSL или OKLCH ---------------------- */
 
@@ -216,8 +200,6 @@ function makeColorEditor(parent,key,title,c,onChange){
   const mode=el('div','ok-mode');
   for(const m of Object.keys(COLOR_MODES)){
     const b=el('button',m===colorMode?'on':null,COLOR_MODES[m]);
-    b.title=m==='okhsl'?'OKHSL: тон, насыщенность, светлота — всегда внутри sRGB':
-                        'OKLCH: светлота, хрома, тон — C ограничена гамутом sRGB';
     b.addEventListener('click',e=>{ e.stopPropagation(); setColorMode(m); });
     mode.appendChild(b);
   }
@@ -298,10 +280,11 @@ function makeColorEditor(parent,key,title,c,onChange){
 
 const secOpen={tile:true,bg:true,chans:true,out:false};
 
-function makeSection(parent,key,title){
+/** Складной раздел; topic — раздел справки для значка «?». */
+function makeSection(parent,key,title,topic){
   const sec=el('div','sec'+(secOpen[key]?'':' closed'));
   const h=el('div','sec-h');
-  h.append(el('span','tick'),el('span',null,title));
+  h.append(el('span','tick'),el('span',null,title),helpBtn(topic));
   const cnt=el('span','cnt');
   h.appendChild(cnt);
   const b=el('div','sec-b');

@@ -51,8 +51,6 @@ async function showEngine(){
   const e=$('stEngine');
   e.textContent='RUST · '+i.threads+' пот.';
   e.style.color='var(--ok)';
-  e.title='zerno-engine '+i.version+', потоков: '+i.threads+
-    '\nкэш полей: '+i.cacheEntries+' шт., '+(i.cacheBytes/1048576).toFixed(1)+' МБ, попаданий '+i.cacheHits+' / промахов '+i.cacheMisses;
 }
 
 function fatal(msg){
@@ -75,7 +73,7 @@ async function boot(){
   initLib();
   initExport();
   initKeys();
-  initHints();
+  initHelp();
   document.addEventListener('zerno:colormode',()=>buildLeft());
   $('stageView').style.background=SURROUND[1];
 
