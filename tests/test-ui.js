@@ -86,6 +86,7 @@ async function invoke(cmd, args, opts) {
   calls.push({ cmd, args, opts });
   if (cmd in answers) { const v = answers[cmd]; delete answers[cmd]; if (v instanceof Error) throw v.message; return v; }
   switch (cmd) {
+    case 'titlebar_error': return null;
     case 'engine_info': return { version: '2.0.0', threads: 4, cacheEntries: 0, cacheBytes: 0, cacheHits: 0, cacheMisses: 0, renders: 0 };
     case 'render':
       try { return zrn1(args.request.jobs); } catch (e) { throw e.message; }   // Tauri отдаёт ошибку строкой
@@ -155,6 +156,13 @@ const lastCall = cmd => calls.filter(c => c.cmd === cmd).pop();
     const conf = JSON.parse(fs.readFileSync(ROOT + '/app/tauri.conf.json', 'utf8')).app.windows[0].backgroundColor;
     const bg = D.documentElement.style.getPropertyValue('--bg');
     ok('заливка окна до загрузки WebView2 = подложка --bg', conf.toLowerCase() === bg.toLowerCase(), conf + ' / ' + bg);
+    const tb = fs.readFileSync(ROOT + '/app/src/titlebar.rs', 'utf8');
+    const want = { CAPTION: '--bg', TEXT: '--ink', BORDER: '--line' };
+    const bad = Object.keys(want).filter(k => {
+      const m = tb.match(new RegExp('pub const ' + k + ': &str = "(#[0-9a-fA-F]{6})"'));
+      return !m || m[1].toLowerCase() !== D.documentElement.style.getPropertyValue(want[k]).toLowerCase();
+    });
+    ok('цвета полосы заголовка (titlebar.rs) = токены --bg, --ink, --line', bad.length === 0, bad.join(','));
   }
   ok('сцена нарисована из плитки движка', $('field').dataset.tile === '512×512', $('field').dataset.tile);
   ok('фоновое зерно интерфейса построено', D.documentElement.style.getPropertyValue('--grain').indexOf('url(') === 0);

@@ -8,6 +8,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod files;
+mod titlebar;
 
 use serde::Serialize;
 use serde_json::Value;
@@ -37,6 +38,15 @@ struct EngineInfo {
     cache_hits: u64,
     cache_misses: u64,
     renders: u64,
+}
+
+/// Ошибка окраски полосы заголовка (None — применилась). Интерфейс показывает
+/// её сообщением: молча оставить системную полосу было бы скрытым сбоем.
+struct TitleBarStatus(Option<String>);
+
+#[tauri::command]
+fn titlebar_error(status: State<'_, TitleBarStatus>) -> Option<String> {
+    status.0.clone()
 }
 
 #[tauri::command]
@@ -69,10 +79,17 @@ fn main() {
             app.manage(Arc::new(Engine::new(FIELD_CACHE_BYTES)));
             let cfg = app.path().app_config_dir().map_err(|e| format!("не найдена папка настроек: {e}"))?;
             app.manage(Arc::new(files::Settings::new(cfg.join("settings.json"))));
+            let win = app.get_webview_window("main").ok_or("нет окна main из tauri.conf.json")?;
+            #[cfg(windows)]
+            let tb = titlebar::apply(&win).err();
+            #[cfg(not(windows))]
+            let tb = Some(format!("полоса заголовка окна «{}» красится только в Windows 11", win.label()));
+            app.manage(TitleBarStatus(tb));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             engine_info,
+            titlebar_error,
             render,
             files::library_state,
             files::library_choose,

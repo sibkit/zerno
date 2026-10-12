@@ -24,6 +24,7 @@ engine/               крейт zerno-engine: чистый движок, без
 app/                  крейт zerno: оболочка Tauri 2
   src/main.rs           команды render, engine_info; запуск
   src/files.rs          настройки, библиотека, открыть/сохранить, экспорт
+  src/titlebar.rs       цвет системной полосы заголовка (DWM, Windows 11)
   tauri.conf.json       окно, CSP, frontendDist = ui
   capabilities/         разрешения: core, dialog (ask/message)
   ui/                   интерфейс (вшивается в exe)
@@ -78,6 +79,12 @@ Zig (браузер — запасной путь), теперь — прило�
   `backgroundColor` из `tauri.conf.json`. Она должна совпадать с `--bg`,
   иначе запуск начинается с чужого (раньше — почти чёрного) прямоугольника.
   Совпадение проверяет тест интерфейса.
+* **Полоса заголовка — системная, но в наших цветах** (`app/src/titlebar.rs`).
+  Её рисует Windows, CSS до неё не достаёт; при запуске Rust задаёт окну
+  атрибуты DWM `CAPTION_COLOR`/`TEXT_COLOR`/`BORDER_COLOR` = `--bg`/`--ink`/
+  `--line`. Своя HTML-полоса отвергнута: терялись бы меню привязки Windows 11
+  и прочее системное поведение. Windows 10 атрибутов не знает — ошибка
+  приходит в интерфейс сообщением (`titlebar_error`), а не глотается.
 * **Пределы и перечисления — в одном месте на сторону.** В интерфейсе это
   `app/ui/js/model.js` (типы шума, режимы, `TILE_MIN/TILE_MAX`, `MIN_CELL_PX`),
   в движке — `engine/src/doc.rs`. Тексты ошибок одинаковые.

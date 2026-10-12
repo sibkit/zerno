@@ -84,6 +84,8 @@ async function boot(){
   else openDocument(start,null,false);
 
   showEngine().catch(e=>toast('Сведения о движке: '+e.message,true));
+  call('titlebar_error').then(e=>{ if(e!==null) toast(e,true); })
+    .catch(e=>toast('Цвет полосы заголовка: '+e.message,true));
   makeChromeGrain().catch(e=>toast('Зерно оформления не построено: '+e.message,true));
   makeTypeThumbs().catch(e=>toast('Миниатюры типов шума не построены: '+e.message,true));
   reloadLibrary().catch(e=>libStatus('Библиотека: '+e.message,true));

@@ -16,6 +16,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 png = "0.18"
 
+[target.'cfg(windows)'.dependencies]
+# цвет системной полосы заголовка (DWM); та же версия уже в дереве у tauri
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }
+
 [features]
 # Собираем обычным `cargo build --release`, без tauri-cli: со встроенным
 # протоколом интерфейс берётся из ui/, вшитого в exe, а не с dev-сервера.
