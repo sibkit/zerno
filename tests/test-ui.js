@@ -151,6 +151,11 @@ const lastCall = cmd => calls.filter(c => c.cmd === cmd).pop();
   ok('статус «готов»', $('stState').textContent === 'готов', $('stState').textContent);
   ok('размер плитки в статусе', $('stTile').textContent === '512×512 px', $('stTile').textContent);
   ok('время рендера показано', /\d+ мс/.test($('stMs').textContent), $('stMs').textContent);
+  {
+    const conf = JSON.parse(fs.readFileSync(ROOT + '/app/tauri.conf.json', 'utf8')).app.windows[0].backgroundColor;
+    const bg = D.documentElement.style.getPropertyValue('--bg');
+    ok('заливка окна до загрузки WebView2 = подложка --bg', conf.toLowerCase() === bg.toLowerCase(), conf + ' / ' + bg);
+  }
   ok('сцена нарисована из плитки движка', $('field').dataset.tile === '512×512', $('field').dataset.tile);
   ok('фоновое зерно интерфейса построено', D.documentElement.style.getPropertyValue('--grain').indexOf('url(') === 0);
   ok('движок — Rust, число потоков', $('stEngine').textContent === 'RUST · 4 пот.', $('stEngine').textContent);
