@@ -201,34 +201,50 @@ const lastCall = cmd => calls.filter(c => c.cmd === cmd).pop();
     drainErrors('искажение домена без ошибок');
   }
 
-  console.log('\n[F] Цвет: HSL, HEX');
+  console.log('\n[F] Цвет: градиент с ручками, HSL, HEX');
   {
-    const oks = cards()[0].querySelectorAll('.ok');
-    ok('в карточке два редактора цвета', oks.length === 2, oks.length + ' шт');
-    oks[1].querySelector('.ok-h').click();
-    ok('редактор раскрывается по клику', oks[1].classList.contains('open'));
-    const labels = Array.from(oks[1].querySelectorAll('.row label')).map(l => l.textContent).join('');
+    const stops = () => cards()[0].querySelectorAll('.stop');
+    ok('у канала две ручки цвета и полоса градиента', stops().length === 2 && !!cards()[0].querySelector('.stops-ramp'));
+    ok('пока ручка не выбрана, редактора нет', cards()[0].querySelectorAll('.stops-ed .ok').length === 0);
+    stops()[1].click();
+    let oks = cards()[0].querySelectorAll('.stops-ed .ok');
+    ok('клик по ручке «сильный» открыл её редактор', oks.length === 1 && oks[0].classList.contains('open') &&
+       stops()[1].classList.contains('on'), oks.length);
+    const labels = Array.from(oks[0].querySelectorAll('.row label')).map(l => l.textContent).join('');
     ok('режим HSL: ползунки H S L A', labels === 'HSLA', labels);
-    const hue = oks[1].querySelectorAll('input[type=range]')[0];
+    const hue = oks[0].querySelectorAll('input[type=range]')[0];
     setRange(hue, 200); await step(120);
-    ok('ползунок H применился', Math.abs(parseFloat(hue.value) - 200) < 1, hue.value);
+    ok('ползунок H применился', Math.abs(api().doc.channels[0].high.h - 200) < 1, api().doc.channels[0].high.h);
     ok('шкала ползунка получила градиент', /linear-gradient/.test(hue.style.getPropertyValue('--trk')));
-    const hex = oks[1].querySelector('.ok-hex');
+    ok('градиент канала обновился', /linear-gradient/.test(cards()[0].querySelector('.stops-ramp').style.getPropertyValue('--ramp')));
+    const hex = oks[0].querySelector('.ok-hex');
     setText(hex, '#E8C547'); await step(120);
     ok('HEX применён и нормализован', /^#E8C5[34][0-9A-F]$/.test(hex.value), hex.value);
     setText(hex, 'мусор'); await step(60);
     ok('плохой HEX отвергнут и поле восстановлено', /^#[0-9A-F]{6}$/.test(hex.value), hex.value);
     ok('показан тост об ошибке', $('toast').classList.contains('err') && /HEX/.test($('toast').textContent));
+    const lowBefore = JSON.stringify(api().doc.channels[0].low), highBefore = JSON.stringify(api().doc.channels[0].high);
+    cards()[0].querySelector('.stops .ibtn').click(); await step(80);
+    ok('⇄ меняет цвета местами', JSON.stringify(api().doc.channels[0].low) === highBefore &&
+       JSON.stringify(api().doc.channels[0].high) === lowBefore);
+    cards()[0].querySelector('.stops .ibtn').click(); await step(80);
+    stops()[0].click();
+    ok('клик по другой ручке переключает редактор', stops()[0].classList.contains('on') && !stops()[1].classList.contains('on') &&
+       /слабый/.test(cards()[0].querySelector('.stops-ed .ok-title').textContent));
+    stops()[0].click();
+    ok('повторный клик прячет редактор', cards()[0].querySelectorAll('.stops-ed .ok').length === 0);
+    stops()[1].click();
     drainErrors('правка цвета без ошибок', /Некорректный HEX/);
   }
 
   console.log('\n[F2] Цвет: OKLCH');
   {
+    const ed = () => cards()[0].querySelector('.stops-ed .ok');
     const before = JSON.stringify(api().serializeDoc(api().doc).channels[0].high);
-    cards()[0].querySelectorAll('.ok')[1].querySelectorAll('.ok-mode button')[1].click();
+    ed().querySelectorAll('.ok-mode button')[1].click();
     await step(80);
-    const box = cards()[0].querySelectorAll('.ok')[1];
-    ok('после пересборки редактор остался раскрытым', box.classList.contains('open'));
+    const box = ed();
+    ok('после пересборки выбранная ручка и редактор остались', !!box && box.classList.contains('open'));
     const labels = Array.from(box.querySelectorAll('.row label')).map(l => l.textContent).join('');
     ok('режим LCH: ползунки L C H A', labels === 'LCHA', labels);
     ok('переключение режима цвет не меняет', JSON.stringify(api().serializeDoc(api().doc).channels[0].high) === before);
@@ -245,13 +261,33 @@ const lastCall = cmd => calls.filter(c => c.cmd === cmd).pop();
     drainErrors('OKLCH без ошибок');
   }
 
+  console.log('\n[F3] Размер пятна по ступеням');
+  {
+    const row = Array.from(cards()[0].querySelectorAll('.row')).find(r => /^(Пятно|Зерно) X/.test(r.querySelector('label').textContent));
+    ok('строка размера найдена', !!row);
+    const t = api().doc.channels[0].noise.type, W = api().doc.tile.width;
+    const rng = row.querySelector('input[type=range]'), num = row.querySelector('.num');
+    setRange(rng, Math.log2(W / 3.4)); await step(100);
+    const c = Math.round(W / api().doc.channels[0].noise.sizeX);
+    ok('размер встал ровно на ступень «сторона / целое»', Math.abs(api().doc.channels[0].noise.sizeX * c - W) < 1e-9,
+       api().doc.channels[0].noise.sizeX + ' × ' + c);
+    ok('под подписью — число ячеек', new RegExp('^' + c + ' ячe?').test(row.querySelector('.row-note').textContent) ||
+       row.querySelector('.row-note').textContent.indexOf(String(c)) === 0, row.querySelector('.row-note').textContent);
+    setText(num, '1000000'); await step(100);
+    ok('слишком большой размер — одна ячейка на плитку', api().doc.channels[0].noise.sizeX === W, api().doc.channels[0].noise.sizeX);
+    ok('пояснение к размеру есть', /ступенями/.test(row.dataset.hint || ''));
+    ok('тип не сменился', api().doc.channels[0].noise.type === t);
+    drainErrors('размер по ступеням без ошибок');
+  }
+
   console.log('\n[G] Числовое поле и сид');
   {
     const num = cards()[0].querySelector('.num');
     setText(num, '999999'); await step(100);
     ok('значение выше максимума обрезано', parseFloat(num.value) <= 1024, num.value);
-    setText(num, '12,5'); await step(100);
-    ok('запятая как разделитель принята', Math.abs(parseFloat(num.value) - 12.5) < 0.01, num.value);
+    const gainNum = Array.from(cards()[0].querySelectorAll('.row')).find(r => r.querySelector('label').textContent === 'Затухание').querySelector('.num');
+    setText(gainNum, '0,25'); await step(100);
+    ok('запятая как разделитель принята', Math.abs(api().doc.channels[0].noise.gain - 0.25) < 1e-9, gainNum.value);
     const seedRow = Array.from(cards()[0].querySelectorAll('.row')).find(r => r.querySelector('label') && r.querySelector('label').textContent === 'Сид');
     const seed = seedRow && seedRow.querySelector('input');
     ok('поле сида найдено', !!seed);
@@ -472,6 +508,42 @@ const lastCall = cmd => calls.filter(c => c.cmd === cmd).pop();
     setText(nums[1], '8'); await step(200);
     ok('плитка 8×8 отрисована', $('stTile').textContent === '8×8 px', $('stTile').textContent);
     drainErrors('крошечная плитка без ошибок');
+  }
+
+  console.log('\n[R] Подсказки, мышь, шпаргалка, миниатюры типов');
+  {
+    const over = el => el.dispatchEvent(new win.MouseEvent('mouseover', { bubbles: true }));
+    const idle = $('stHint').textContent;
+    over($('btnPng'));
+    ok('наведение на кнопку — пояснение в строке подсказок', /PNG/.test($('stHint').textContent) && $('stHint').classList.contains('on'),
+       $('stHint').textContent);
+    ok('системная подсказка снята (title перенесён)', !$('btnPng').hasAttribute('title') && /PNG/.test($('btnPng').dataset.hint));
+    const contrast = Array.from(cards()[0].querySelectorAll('.row')).find(r => r.querySelector('label').textContent === 'Контраст');
+    over(contrast.querySelector('input[type=range]'));
+    ok('наведение на ползунок — пояснение к параметру', /Контраст/.test($('stHint').textContent), $('stHint').textContent);
+    over($('colLeft'));
+    ok('без пояснения — исходный текст строки', $('stHint').textContent === idle && !$('stHint').classList.contains('on'));
+
+    $('stageView').dispatchEvent(new win.WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true }));
+    ok('колесо без Ctrl увеличивает', $('zval').textContent !== '100%', $('zval').textContent);
+    $('stageView').dispatchEvent(new win.MouseEvent('dblclick', { bubbles: true }));
+    ok('двойной клик — 1:1', $('zval').textContent === '100%', $('zval').textContent);
+
+    D.body.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'F1', code: 'F1', bubbles: true, cancelable: true }));
+    ok('F1 открывает шпаргалку', !$('help').hidden);
+    D.body.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
+    ok('Esc закрывает', $('help').hidden);
+    $('btnHelp').click();
+    ok('кнопка «?» открывает', !$('help').hidden);
+    $('help').click();
+    ok('клик мимо окна закрывает', $('help').hidden);
+
+    const thumbs = Array.from($('colLeft').querySelectorAll('.chip-thumb'));
+    ok('у кнопок «+ канал» есть миниатюры типов', thumbs.length === 4 && thumbs.every(t => /url\("data:image\/png/.test(t.style.backgroundImage)),
+       thumbs.map(t => t.style.backgroundImage.slice(0, 20)).join(' | '));
+    const head = cards()[0].querySelector('.card-h');
+    ok('у заголовка карточки есть стрелка и пояснение', !!head.querySelector('.card-chev') && /развернуть/.test(head.dataset.hint || ''));
+    drainErrors('подсказки и мышь без ошибок');
   }
 
   console.log('\n[Q] Сессия переживает перезапуск');

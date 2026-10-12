@@ -54,6 +54,10 @@ option{background:var(--panel-2)}
   padding:6px 8px;cursor:pointer;transition:.12s;
 }
 .chip:hover{color:var(--ink);border-color:var(--line-2)}
+/* «+ канал» с миниатюрой типа */
+.chip-add{display:inline-flex;align-items:center;gap:7px;padding:4px 8px 4px 4px}
+.chip-thumb{width:18px;height:18px;border-radius:2px;flex:none;background:#1a1e23 center/cover;
+  border:1px solid #000;image-rendering:auto}
 .chip.on{color:var(--acc);border-color:var(--acc-dim);background:var(--acc-bg)}
 
 .warn{
@@ -61,3 +65,5 @@ option{background:var(--panel-2)}
   padding:7px 9px;border-radius:3px;margin:6px 0 2px;
 }
 .hint{font:400 var(--fs-xs)/1.45 var(--sans);color:var(--ink-3);padding:6px 0 0}
+/* короткая строка под подписью: «3 ячейки» у размера */
+.row-note{display:block;font:400 10px/1.2 var(--mono);color:var(--ink-3);margin-top:2px}

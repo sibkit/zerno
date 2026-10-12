@@ -29,12 +29,34 @@ function toast(msg,isErr){
   if(isErr) console.error(msg);
 }
 
-/** Числовое поле: перетаскивание по горизонтали меняет значение. */
-function attachScrub(input,o,commit){
-  let dragging=false,startX=0,startV=0,moved=false;
+/**
+ * Строка подсказок внизу окна: наведение на элемент с пояснением (data-hint
+ * или title) сразу показывает его там. title переносится в data-hint, чтобы
+ * поверх не всплывала ещё и системная подсказка с задержкой.
+ */
+function initHints(){
+  const out=$('stHint');
+  const idle=out.textContent;
+  document.addEventListener('mouseover',e=>{
+    const t=e.target.closest('[data-hint],[title]');
+    if(t&&t.hasAttribute('title')){
+      if(t.title) t.dataset.hint=t.title;
+      t.removeAttribute('title');
+    }
+    const txt=t&&t.dataset.hint;
+    out.textContent=txt||idle;
+    out.classList.toggle('on',!!txt);
+  });
+}
+
+/** Числовое поле: перетаскивание по горизонтали меняет значение.
+    pos/val — перевод в шкалу ползунка и обратно (у логарифмической шкалы
+    перетаскивание тоже идёт по ней), span — ширина шкалы. */
+function attachScrub(input,get,pos,val,span,commit){
+  let dragging=false,startX=0,startP=0,moved=false;
   input.addEventListener('pointerdown',e=>{
     if(document.activeElement===input) return;
-    dragging=true; moved=false; startX=e.clientX; startV=o.get();
+    dragging=true; moved=false; startX=e.clientX; startP=pos(get());
     try{ input.setPointerCapture(e.pointerId); }catch(_){}
     e.preventDefault();
   });
@@ -42,10 +64,10 @@ function attachScrub(input,o,commit){
     if(!dragging) return;
     const dx=e.clientX-startX;
     if(Math.abs(dx)>2) moved=true;
-    let k=(o.max-o.min)/320;
+    let k=span()/320;
     if(e.shiftKey) k*=0.15;
     if(e.ctrlKey||e.metaKey) k*=4;
-    commit(startV+dx*k);
+    commit(val(startP+dx*k));
   });
   const end=e=>{
     if(!dragging) return;
@@ -59,39 +81,61 @@ function attachScrub(input,o,commit){
 
 /**
  * Строка «подпись — слайдер — число».
- * o: {label,min,max,step,get,set,onInput,track,decimals,snapInt}
+ * o: {label,min,max,step,get,set,onInput,track,decimals,snapInt,hint,
+ *     log,snap,note}
+ *   min/max — числа или функции (границы, зависящие от плитки);
+ *   log     — ползунок в логарифмической шкале (для размеров);
+ *   snap    — v → ближайшее допустимое значение (ступени);
+ *   note    — () → короткая строка под подписью;
+ *   hint    — пояснение для строки подсказок внизу окна.
  */
 function makeRow(parent,o){
   const r=el('div','row');
   const lab=el('label',null,o.label);
+  const noteEl=o.note?el('small','row-note'):null;
+  if(noteEl) lab.appendChild(noteEl);
   const rng=document.createElement('input');
-  rng.type='range'; rng.min=o.min; rng.max=o.max; rng.step=o.step;
+  rng.type='range';
   const num=document.createElement('input');
   num.type='text'; num.className='num'; num.inputMode='decimal'; num.spellcheck=false;
   r.append(lab,rng,num);
+  if(o.hint) r.dataset.hint=o.hint;
   parent.appendChild(r);
   const dec=o.decimals!==undefined?o.decimals:decimalsFor(o.step);
-  const snap=o.snapInt!==undefined?o.snapInt:(o.step>=1);
+  const snapInt=o.snapInt!==undefined?o.snapInt:(o.step>=1);
+  const lo=()=>typeof o.min==='function'?o.min():o.min;
+  const hi=()=>typeof o.max==='function'?o.max():o.max;
+  const pos=v=>o.log?Math.log2(v):v;
+  const val=p=>o.log?Math.pow(2,p):p;
+  if(o.log){
+    if(!(lo()>0)) throw new Error('makeRow «'+o.label+'»: логарифмической шкале нужен min > 0');
+    rng.step='any';
+  }else rng.step=o.step;
   function show(){
     const v=o.get();
-    rng.value=v; num.value=fmt(v,dec);
+    rng.min=pos(lo()); rng.max=pos(hi());
+    rng.value=pos(v);
+    /* поле, в котором сейчас печатают, не трогаем */
+    if(document.activeElement!==num) num.value=fmt(v,dec);
+    if(noteEl) noteEl.textContent=o.note();
     if(o.track) rng.style.setProperty('--trk',o.track());
   }
   function commit(v){
     if(!isFinite(v)) return;
-    if(snap) v=Math.round(v);
-    v=Math.max(o.min,Math.min(o.max,v));
+    if(snapInt) v=Math.round(v);
+    v=Math.max(lo(),Math.min(hi(),v));
+    if(o.snap) v=o.snap(v);
     o.set(v); show();
     if(o.onInput) o.onInput();
   }
-  rng.addEventListener('input',()=>commit(parseFloat(rng.value)));
+  rng.addEventListener('input',()=>commit(val(parseFloat(rng.value))));
   num.addEventListener('change',()=>{
     const v=parseFloat(num.value.replace(',','.'));
     if(!isFinite(v)){ num.classList.add('bad'); return; }
     num.classList.remove('bad'); commit(v);
   });
   num.addEventListener('blur',()=>{ num.classList.remove('bad'); show(); });
-  attachScrub(num,o,commit);
+  attachScrub(num,o.get,pos,val,()=>pos(hi())-pos(lo()),commit);
   show();
   return {refresh:show,row:r};
 }
@@ -120,7 +164,7 @@ function makeCheck(parent,label,get,set,onInput){
   l.append(inp,box,el('span',null,label));
   inp.addEventListener('change',()=>{ set(inp.checked); if(onInput) onInput(); });
   parent.appendChild(l);
-  return {refresh:()=>{inp.checked=get();}};
+  return {refresh:()=>{inp.checked=get();},el:l};
 }
 
 function subHead(parent,txt){ parent.appendChild(el('div','sub-h',txt)); }

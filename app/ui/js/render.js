@@ -93,6 +93,8 @@ function updateCardMeta(){
   for(const ch of doc.channels){
     const r=cardRefs[ch.id];
     if(!r) continue;
+    /* число ячеек зависит и от размера плитки — подписи обновляются здесь */
+    if(r.sizeRows) for(const row of r.sizeRows) row.refresh();
     const n=ch.noise, info=NOISE_TYPES[n.type];
     const cap=info.octaves?maxOctavesFor(n,W,H):1;
     const used=info.octaves?Math.min(n.octaves,cap):1;
@@ -223,12 +225,13 @@ function initStage(){
   });
   /* размер сцены меняется и окном, и скрытием библиотеки */
   new ResizeObserver(drawStage).observe($('stageView'));
-  /* Ctrl + колесо над плиткой — масштаб, шаг ⅛ октавы */
+  /* Колесо над сценой — масштаб, шаг ⅛ октавы: прокручивать сцене нечего,
+     плитки замощают её целиком. Двойной клик — 1:1. */
   $('stageView').addEventListener('wheel',e=>{
-    if(!e.ctrlKey) return;
     e.preventDefault();
     zoomBy(e.deltaY<0?0.125:-0.125);
   },{passive:false});
+  $('stageView').addEventListener('dblclick',zoomReset);
 }
 
 function zoomBy(d){

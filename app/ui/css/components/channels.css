@@ -9,6 +9,10 @@
 .card-h{display:flex;align-items:center;gap:9px;padding:7px 8px;cursor:pointer}
 .card-h:hover{background:var(--panel-3)}
 .card.open .card-h{background:var(--panel-3);border-bottom:1px solid var(--line)}
+.card-chev{width:7px;height:7px;flex:none;border-right:1.5px solid var(--ink-3);border-bottom:1.5px solid var(--ink-3);
+  transform:rotate(-45deg);transition:transform .15s;margin:0 4px 0 1px}
+.card-h:hover .card-chev{border-color:var(--ink)}
+.card.open .card-chev{transform:rotate(45deg)}
 .thumb{width:44px;height:44px;flex:none;border:1px solid #000;border-radius:3px;display:block;background:#0b0d10}
 .card-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
 .card-name{
@@ -19,7 +23,8 @@
 .card-meta{font:400 var(--fs-xs)/1 var(--mono);color:var(--ink-3);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:3px}
 /* полоса «низ → верх» поверх шахматки: видно и цвет, и прозрачность */
-.card-ramp{height:5px;border-radius:2px;margin-left:3px;
+.card-ramp{height:5px;border-radius:2px;margin-left:3px}
+.card-ramp,.stops-ramp{
   background-image:var(--ramp),
     linear-gradient(45deg,#2a2f36 25%,transparent 25%,transparent 75%,#2a2f36 75%),
     linear-gradient(45deg,#2a2f36 25%,transparent 25%,transparent 75%,#2a2f36 75%);
@@ -27,3 +32,13 @@
 .card-a{display:flex;gap:1px;flex:none}
 .card-b{padding:6px 11px 13px;display:none}
 .card.open .card-b{display:block}
+/* цвета канала: ручка «слабый» · градиент · ручка «сильный» · ⇄ */
+.stops{display:flex;align-items:center;gap:6px;padding:6px 0 2px}
+.stop{display:flex;flex-direction:column;align-items:center;gap:3px;flex:none;
+  background:transparent;border:1px solid var(--line);border-radius:var(--r);padding:4px 5px;cursor:pointer;
+  color:var(--ink-3);font:400 var(--fs-xs)/1 var(--sans)}
+.stop .ok-sw{width:30px;height:20px}
+.stop:hover{border-color:var(--line-2);color:var(--ink-2)}
+.stop.on{border-color:var(--acc-dim);background:var(--acc-bg);color:var(--acc)}
+.stops-ramp{flex:1;min-width:0;height:22px;border-radius:3px;border:1px solid #000}
+.stops-ed .ok{margin-top:4px}

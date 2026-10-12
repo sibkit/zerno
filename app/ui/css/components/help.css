@@ -1,0 +1,9 @@
+/* Шпаргалка горячих клавиш (F1). */
+.help{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);display:grid;place-items:center}
+.help[hidden]{display:none}
+.help-box{background:var(--panel-2);border:1px solid var(--line-2);border-radius:var(--r);padding:16px 20px 18px;
+  box-shadow:0 24px 64px rgba(0,0,0,.6);min-width:420px}
+.help-t{font:600 var(--fs)/1 var(--sans);color:var(--ink);margin-bottom:12px}
+.help table{border-collapse:collapse}
+.help td{padding:5px 14px 5px 0;font:400 var(--fs-s)/1.3 var(--sans);color:var(--ink-2);vertical-align:top}
+.help td:first-child{font-family:var(--mono);color:var(--acc);white-space:nowrap}

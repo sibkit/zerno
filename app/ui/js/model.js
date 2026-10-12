@@ -38,6 +38,14 @@ function baseCells(n,W,H){
   ];
 }
 
+/** Наибольшее число ячеек на сторону D: у решётки ячейка не меньше MIN_CELL_PX,
+    у зерна — не меньше пикселя. То же правило, что у движка (base_cells, build_grain). */
+function maxCellsFor(type,D){ return type==='grain'?D:Math.max(1,Math.floor(D/MIN_CELL_PX)); }
+
+/** Сколько ячеек ляжет на сторону D при размере пятна s. Картинка зависит только
+    от этого числа: размер меняет её ступенями, а не плавно. */
+function cellsFor(type,s,D){ return Math.max(1,Math.min(maxCellsFor(type,D),Math.round(D/s))); }
+
 function maxOctavesFor(n,W,H){
   const [cx,cy]=baseCells(n,W,H);
   let o=1;

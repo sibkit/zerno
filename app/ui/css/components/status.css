@@ -21,3 +21,7 @@
 .dot.busy{background:var(--acc);color:var(--acc);animation:pulse .7s infinite alternate}
 .dot.err{background:var(--danger);color:var(--danger)}
 @keyframes pulse{from{opacity:.35}to{opacity:1}}
+/* строка подсказок: пояснение к элементу под курсором */
+.status .st-hint{flex:1;min-width:0;display:block;line-height:28px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-family:var(--sans);color:var(--ink-3)}
+.status .st-hint.on{color:var(--ink)}

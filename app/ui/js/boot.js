@@ -75,6 +75,7 @@ async function boot(){
   initLib();
   initExport();
   initKeys();
+  initHints();
   document.addEventListener('zerno:colormode',()=>buildLeft());
   $('stageView').style.background=SURROUND[1];
 
@@ -86,6 +87,7 @@ async function boot(){
 
   showEngine().catch(e=>toast('Сведения о движке: '+e.message,true));
   makeChromeGrain().catch(e=>toast('Зерно оформления не построено: '+e.message,true));
+  makeTypeThumbs().catch(e=>toast('Миниатюры типов шума не построены: '+e.message,true));
   reloadLibrary().catch(e=>libStatus('Библиотека: '+e.message,true));
 }
 
