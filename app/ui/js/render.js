@@ -112,7 +112,10 @@ function updateCardMeta(){
 }
 
 const stage={grid:false,shift:false,smooth:false};
-const SURROUND=['#000000','#0e1014','#3a3f46','#808080','#c9ccd0','#ffffff'];
+/* Цвета обрамления сцены — нейтральные, чтобы судить о цветах плитки;
+   второй (по умолчанию) — подложка оформления. */
+const SURROUND=['#000000',null,'#3a3f46','#808080','#c9ccd0','#ffffff'];
+const surroundColor=i=>SURROUND[i]===null?cssToken('--bg'):SURROUND[i];
 
 function putPreview(t){
   let c=preview.tile;
@@ -130,11 +133,6 @@ function zoomFactor(){ return Math.pow(2,parseFloat($('zoom').value)); }
 /* Отступ от края сцены, CSS px: в нём виден цвет обрамления. */
 const STAGE_PAD=24;
 
-function cssToken(name){
-  const v=getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  if(!v) throw new Error('В tokens.css нет переменной '+name);
-  return v;
-}
 
 /**
  * Сцена: плитки замощают область с отступом STAGE_PAD, одна плитка — ровно
@@ -189,7 +187,7 @@ function drawStage(){
   ctx.restore();
 
   /* рамка области */
-  ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=1;
+  ctx.strokeStyle=cssToken('--stage-frame'); ctx.lineWidth=1;
   ctx.strokeRect(ax-0.5,ay-0.5,aw+1,ah+1);
 
   /* для проверок: что именно нарисовано */
@@ -202,9 +200,10 @@ function initStage(){
   const surr=$('surr');
   SURROUND.forEach((c,i)=>{
     const b=el('button','sw-btn'+(i===1?' on':''));
-    b.style.background=c;
+    const col=surroundColor(i);
+    b.style.background=col;
     b.addEventListener('click',()=>{
-      $('stageView').style.background=c;
+      $('stageView').style.background=col;
       surr.querySelectorAll('.sw-btn').forEach(x=>x.classList.remove('on'));
       b.classList.add('on');
     });

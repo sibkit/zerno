@@ -40,10 +40,16 @@ proto.toDataURL = function (type) { return 'data:' + (type || 'image/png') + ';b
 if (!win.ImageData) {
   win.ImageData = class { constructor(data, w, h) { this.data = data; this.width = w; this.height = h; } };
 }
-// сцене нужны DOMMatrix и ResizeObserver, jsdom их не знает; цвет — из токена --acc
+// сцене нужны DOMMatrix и ResizeObserver, jsdom их не знает
 win.DOMMatrix = class { constructor(a) { this.m = a; } };
 win.ResizeObserver = class { constructor(cb) { this.cb = cb; } observe() {} };
-win.document.documentElement.style.setProperty('--acc', '#e8c547');
+// jsdom не грузит CSS: токены оформления (их читает cssToken) — прямо из tokens.css
+{
+  const css = fs.readFileSync(ROOT + '/app/ui/css/tokens.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const root = css.slice(css.indexOf(':root{') + 6, css.lastIndexOf('}'));
+  for (const m of root.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g))
+    win.document.documentElement.style.setProperty(m[1], m[2].trim());
+}
 if (!win.URL.createObjectURL) { win.URL.createObjectURL = () => 'blob:stub'; win.URL.revokeObjectURL = () => {}; }
 let clip = null;
 Object.defineProperty(win.navigator, 'clipboard', { value: { writeText: async t => { clip = t; } }, configurable: true });

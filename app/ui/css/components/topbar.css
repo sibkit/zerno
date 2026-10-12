@@ -1,16 +1,15 @@
-/* Верхняя панель: марка, отмена/повтор, имя пресета и файл, кнопки файла и экспорта. */
+/* Верхняя плитка: марка, отмена/повтор, имя пресета и файл, кнопки файла и экспорта. */
 .bar{
   display:flex;align-items:center;gap:14px;
-  height:54px;padding:0 14px 0 18px;
-  background:var(--panel);border-bottom:1px solid var(--line);
+  height:54px;padding:0 10px 0 18px;
   position:relative;z-index:20;
 }
-.bar::after{content:"";position:absolute;inset:0;background-image:var(--grain);
+.bar::after{content:"";position:absolute;inset:0;border-radius:inherit;background-image:var(--grain);
   mix-blend-mode:overlay;opacity:.55;pointer-events:none}
 .bar>*{position:relative;z-index:1}
 .brand{display:flex;align-items:baseline;gap:10px;flex:none}
 .mark{font:700 17px/1 var(--disp);letter-spacing:.14em;color:var(--ink);
-  text-shadow:0 0 22px rgba(232,197,71,.18)}
+  text-shadow:0 0 22px var(--acc-glow)}
 .mark b{color:var(--acc);font-weight:700}
 .sub{font:400 var(--fs-xs)/1 var(--mono);letter-spacing:.08em;color:var(--ink-3)}
 

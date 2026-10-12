@@ -97,8 +97,8 @@ async function renderLib(){
   }catch(err){
     for(const cv of canvases){
       const ctx=cv.getContext('2d');
-      ctx.fillStyle='#2a1010'; ctx.fillRect(0,0,cv.width,cv.height);
-      ctx.fillStyle='#ff6b5e'; ctx.font='18px monospace';
+      ctx.fillStyle=cssToken('--danger-bg'); ctx.fillRect(0,0,cv.width,cv.height);
+      ctx.fillStyle=cssToken('--danger'); ctx.font='18px monospace';
       ctx.fillText('ошибка',14,58);
     }
     toast('Миниатюры библиотеки: '+err.message,true);

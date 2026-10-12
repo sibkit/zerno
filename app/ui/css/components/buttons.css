@@ -7,10 +7,10 @@
   transition:background .12s,color .12s,border-color .12s,transform .06s;
   display:inline-flex;align-items:center;gap:6px;
 }
-.btn:hover{color:var(--ink);border-color:#435060;background:var(--panel-3)}
+.btn:hover{color:var(--ink);border-color:var(--line-3);background:var(--panel-3)}
 .btn:active{transform:translateY(1px)}
-.btn.acc{color:#171307;background:var(--acc);border-color:var(--acc)}
-.btn.acc:hover{background:var(--acc-2);border-color:var(--acc-2);color:#171307}
+.btn.acc{color:var(--on-acc);background:var(--acc);border-color:var(--acc)}
+.btn.acc:hover{background:var(--acc-2);border-color:var(--acc-2);color:var(--on-acc)}
 .btn.sm{padding:6px 9px}
 .btn.icon{padding:7px 9px;font-size:var(--fs)}
 .btn[disabled]{opacity:.35;cursor:default;transform:none}
@@ -19,9 +19,9 @@
 
 .ibtn{
   width:26px;height:26px;display:grid;place-items:center;cursor:pointer;
-  background:transparent;border:1px solid transparent;border-radius:3px;color:var(--ink-3);
+  background:transparent;border:1px solid transparent;border-radius:var(--r-s);color:var(--ink-3);
   font:500 var(--fs-s)/1 var(--mono);transition:.12s;
 }
 .ibtn:hover{color:var(--ink);background:var(--panel);border-color:var(--line-2)}
-.ibtn.del:hover{color:var(--danger);border-color:#5a2320}
+.ibtn.del:hover{color:var(--danger);border-color:var(--danger-line)}
 .ibtn.on{color:var(--acc)}

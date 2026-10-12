@@ -4,6 +4,16 @@
 
 
 const $=id=>document.getElementById(id);
+/* Токен оформления из tokens.css. Токены на ходу не меняются, поэтому
+   читаются один раз: сцена спрашивает цвета на каждом кадре. */
+const tokenCache={};
+function cssToken(name){
+  if(name in tokenCache) return tokenCache[name];
+  const v=getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if(!v) throw new Error('В tokens.css нет переменной '+name);
+  return tokenCache[name]=v;
+}
+
 function el(tag,cls,txt){
   const e=document.createElement(tag);
   if(cls) e.className=cls;
@@ -250,7 +260,7 @@ function makeColorEditor(parent,key,title,c,onChange){
           track:()=>{
             const cmax=maxChroma(lch.L,lch.H);
             /* за границей гамута шкала тёмная: туда хрома не пойдёт */
-            return gradStops(t=>t*OKLCH_C_MAX<=cmax?css(lch.L,t*OKLCH_C_MAX,lch.H):'#121418',17);
+            return gradStops(t=>t*OKLCH_C_MAX<=cmax?css(lch.L,t*OKLCH_C_MAX,lch.H):cssToken('--track-off'),17);
           }});
     push({label:'H',min:0,max:360,step:0.5,get:()=>lch.H,set:v=>lch.H=v,onInput:apply,
           track:()=>gradStops(t=>css(lch.L,Math.max(lch.want,0.08),t*360),13)});

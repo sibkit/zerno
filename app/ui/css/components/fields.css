@@ -1,12 +1,12 @@
 /* Поля ввода: строка «подпись · ползунок · число», списки, флажки, чипсы,
-   а также подсказки и предупреждения под ними. */
+   а также предупреждения под ними. */
 .row{display:grid;grid-template-columns:84px 1fr 64px;align-items:center;gap:10px;padding:3px 0}
 .row>label{font:400 var(--fs-s)/1.2 var(--sans);color:var(--ink-2);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row.wide{grid-template-columns:84px 1fr}
 .num{
   background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
-  font:500 var(--fs-s)/1 var(--mono);padding:6px 6px;border-radius:3px;
+  font:500 var(--fs-s)/1 var(--mono);padding:6px 6px;border-radius:var(--r-s);
   text-align:right;width:100%;outline:none;cursor:ew-resize;
 }
 .num:hover{border-color:var(--line-2)}
@@ -18,13 +18,13 @@ input[type=range]{
   outline:none;cursor:pointer;display:block;
 }
 input[type=range]::-webkit-slider-runnable-track{
-  height:6px;border-radius:3px;background:var(--trk,#232931);border:1px solid #1b2027;
+  height:6px;border-radius:3px;background:var(--trk,var(--track));border:1px solid var(--track-line);
 }
 input[type=range]::-webkit-slider-thumb{
   -webkit-appearance:none;appearance:none;
-  width:10px;height:18px;border-radius:3px;margin-top:-7px;
-  background:var(--ink);border:1px solid #000;
-  box-shadow:0 0 0 1px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.7);
+  width:10px;height:18px;border-radius:4px;margin-top:-7px;
+  background:var(--ink);border:1px solid var(--bg);
+  box-shadow:var(--shadow-thumb);
   transition:background .1s;
 }
 input[type=range]:hover::-webkit-slider-thumb{background:var(--acc)}
@@ -32,37 +32,37 @@ input[type=range]:focus-visible::-webkit-slider-thumb{background:var(--acc)}
 
 select{
   width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
-  font:400 var(--fs-s)/1 var(--sans);padding:7px 6px;border-radius:3px;outline:none;cursor:pointer;
+  font:400 var(--fs-s)/1 var(--sans);padding:7px 6px;border-radius:var(--r-s);outline:none;cursor:pointer;
 }
 select:hover{border-color:var(--line-2)}
 select:focus{border-color:var(--acc-dim)}
 option{background:var(--panel-2)}
 .chk{display:flex;align-items:center;gap:8px;cursor:pointer;padding:5px 0}
 .chk input{display:none}
-.chk .box{width:15px;height:15px;border:1px solid var(--line-2);border-radius:3px;background:var(--panel-2);
+.chk .box{width:15px;height:15px;border:1px solid var(--line-2);border-radius:4px;background:var(--panel-2);
   flex:none;position:relative;transition:.12s}
-.chk:hover .box{border-color:#435060}
+.chk:hover .box{border-color:var(--line-3)}
 .chk input:checked+.box{background:var(--acc);border-color:var(--acc)}
 .chk input:checked+.box::after{content:"";position:absolute;left:4.5px;top:1.5px;width:4px;height:8px;
-  border-right:2px solid #171307;border-bottom:2px solid #171307;transform:rotate(42deg)}
+  border-right:2px solid var(--on-acc);border-bottom:2px solid var(--on-acc);transform:rotate(42deg)}
 .chk span{font:400 var(--fs-s)/1 var(--sans);color:var(--ink-2)}
 
 .chips{display:flex;flex-wrap:wrap;gap:5px;padding:6px 0 2px}
 .chip{
   font:500 var(--fs-xs)/1 var(--mono);color:var(--ink-2);
-  background:var(--panel-2);border:1px solid var(--line);border-radius:3px;
+  background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-s);
   padding:6px 8px;cursor:pointer;transition:.12s;
 }
 .chip:hover{color:var(--ink);border-color:var(--line-2)}
 /* «+ канал» с миниатюрой типа */
 .chip-add{display:inline-flex;align-items:center;gap:7px;padding:4px 8px 4px 4px}
-.chip-thumb{width:18px;height:18px;border-radius:2px;flex:none;background:#1a1e23 center/cover;
-  border:1px solid #000;image-rendering:auto}
+.chip-thumb{width:18px;height:18px;border-radius:3px;flex:none;background:var(--well) center/cover;
+  border:1px solid var(--line);image-rendering:auto}
 .chip.on{color:var(--acc);border-color:var(--acc-dim);background:var(--acc-bg)}
 
 .warn{
-  font:400 var(--fs-xs)/1.4 var(--sans);color:var(--warn);background:#1c1608;border:1px solid #3d3111;
-  padding:7px 9px;border-radius:3px;margin:6px 0 2px;
+  font:400 var(--fs-xs)/1.4 var(--sans);color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-line);
+  padding:7px 9px;border-radius:var(--r-s);margin:6px 0 2px;
 }
 /* короткая строка под подписью: «3 ячейки» у размера */
 .row-note{display:block;font:400 10px/1.2 var(--mono);color:var(--ink-3);margin-top:2px}

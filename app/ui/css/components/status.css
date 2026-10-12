@@ -1,11 +1,10 @@
-/* Нижняя строка состояния: индикатор, счётчики, движок. */
+/* Нижняя плитка — строка состояния: индикатор, счётчики, движок. */
 .status{
-  display:flex;align-items:center;height:28px;padding:0 14px;
-  background:var(--panel);border-top:1px solid var(--line);
+  display:flex;align-items:center;height:30px;padding:0 14px;
   font:400 var(--fs-xs)/1 var(--mono);color:var(--ink-3);
   position:relative;
 }
-.status::after{content:"";position:absolute;inset:0;
+.status::after{content:"";position:absolute;inset:0;border-radius:inherit;
   background-image:var(--grain);mix-blend-mode:overlay;opacity:.5;pointer-events:none}
 .status>*{position:relative;z-index:1}
 .status .it{display:flex;align-items:center;gap:7px;padding:0 13px;border-right:1px solid var(--line);height:100%}

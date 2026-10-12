@@ -10,13 +10,13 @@ body{
   user-select:none;
 }
 input,select,textarea{user-select:text}
-::selection{background:var(--acc);color:#111}
+::selection{background:var(--acc);color:var(--on-acc)}
 :focus-visible{outline:2px solid var(--acc-dim);outline-offset:1px}
 
 *::-webkit-scrollbar{width:10px;height:10px}
 *::-webkit-scrollbar-track{background:transparent}
-*::-webkit-scrollbar-thumb{background:#2a3038;border:2px solid var(--panel);border-radius:6px}
-*::-webkit-scrollbar-thumb:hover{background:#3c4550}
+*::-webkit-scrollbar-thumb{background:var(--scroll);border:2px solid transparent;background-clip:padding-box;border-radius:6px}
+*::-webkit-scrollbar-thumb:hover{background:var(--scroll-hover);background-clip:padding-box}
 
 /* утилита: спрятать узел, не трогая его собственные стили */
 .hidden{display:none!important}

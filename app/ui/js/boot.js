@@ -75,7 +75,7 @@ async function boot(){
   initKeys();
   initHelp();
   document.addEventListener('zerno:colormode',()=>buildLeft());
-  $('stageView').style.background=SURROUND[1];
+  $('stageView').style.background=surroundColor(1);
 
   let session=null;
   try{ session=readSession(); }
