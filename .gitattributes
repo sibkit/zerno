@@ -1,0 +1,5 @@
+# Конец строк — LF во всех текстовых файлах (см. how_it_made.md, «ловушки правки файлов»).
+* text=auto eol=lf
+*.ico binary
+*.png binary
+*.woff2 binary

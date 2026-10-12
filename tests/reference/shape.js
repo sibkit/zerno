@@ -14,7 +14,6 @@ function shapeValue(t,sh){
 }
 
 const LUT_N=2048;
-const STOP_MIX={oklab:'OKLab (перцептивно)','srgb-linear':'Линейный sRGB (физично)'};
 
 /** Таблица цвета канала: индекс = нормированное значение шума. */
 function buildStopLut(ch,mixSpace){

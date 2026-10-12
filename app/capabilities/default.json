@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Главное окно: свои команды, события, вопросы-подтверждения",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:allow-ask", "dialog:allow-message"]
+}

@@ -1,0 +1,10 @@
+[package]
+name = "zerno-engine"
+version = "2.0.0"
+edition = "2024"
+description = "ЗЕРНО: движок бесшовного шума — решётки, композит, дизеринг, строгий разбор документа"
+
+[dependencies]
+rayon = "1.12"
+# preserve_order: «неизвестное поле» сообщается в порядке файла, как в интерфейсе.
+serde_json = { version = "1", features = ["preserve_order"] }

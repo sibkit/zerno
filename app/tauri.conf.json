@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Zerno",
+  "version": "2.0.0",
+  "identifier": "com.sibkit.zerno",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "ЗЕРНО — генератор бесшовного шума",
+        "width": 1500,
+        "height": 940,
+        "minWidth": 1040,
+        "minHeight": 640,
+        "dragDropEnabled": true,
+        "backgroundColor": "#08090b"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": ["icons/icon.ico", "icons/icon.png"]
+  }
+}

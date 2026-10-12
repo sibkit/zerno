@@ -1,0 +1,22 @@
+/* Сброс, базовая типографика документа, полосы прокрутки, выделение, фокус. */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font:400 var(--fs)/1.45 var(--sans);
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+  user-select:none;
+}
+input,select,textarea{user-select:text}
+::selection{background:var(--acc);color:#111}
+:focus-visible{outline:2px solid var(--acc-dim);outline-offset:1px}
+
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{background:#2a3038;border:2px solid var(--panel);border-radius:6px}
+*::-webkit-scrollbar-thumb:hover{background:#3c4550}
+
+/* утилита: спрятать узел, не трогая его собственные стили */
+.hidden{display:none!important}

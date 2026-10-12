@@ -1,0 +1,23 @@
+[package]
+name = "zerno"
+version = "2.0.0"
+edition = "2024"
+description = "ЗЕРНО — генератор бесшовного шума для фона (Tauri)"
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+zerno-engine = { path = "../engine" }
+tauri = { version = "2.12", features = [] }
+tauri-plugin-dialog = "2.8"
+tauri-plugin-opener = "2.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+png = "0.18"
+
+[features]
+# Собираем обычным `cargo build --release`, без tauri-cli: со встроенным
+# протоколом интерфейс берётся из ui/, вшитого в exe, а не с dev-сервера.
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

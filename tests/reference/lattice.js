@@ -85,7 +85,6 @@ function worleyPoints(cx,cy,seed,jitter){
   return {px,py,cx,cy};
 }
 
-const WORLEY_MODES={f1:'F1 — пятна',f2:'F2 — вторая точка',f2f1:'F2−F1 — ячейки/трещины'};
 
 function worleySample(P,x,y,mode){
   const cx=P.cx, cy=P.cy, ppx=P.px, ppy=P.py;

@@ -1,0 +1,33 @@
+/* ЗЕРНО · токены оформления.
+   Единственное место, где заданы цвета, размеры текста, радиусы и шрифты.
+   Контраст текста на --panel: --ink 15:1, --ink-2 8.6:1, --ink-3 5.6:1 —
+   даже самые бледные подписи проходят WCAG AA для мелкого текста.
+   --grain подставляется из JS (makeChromeGrain) — плёнка на хроме панелей. */
+:root{
+  --bg:#08090b;
+  --panel:#0e1014;
+  --panel-2:#14171c;
+  --panel-3:#1a1e24;
+  --line:#20252c;
+  --line-2:#2e353e;
+  --ink:#e9edf1;
+  --ink-2:#aab3bd;
+  --ink-3:#848d97;
+  --acc:#e8c547;
+  --acc-2:#f5dc8a;
+  --acc-dim:#6b5b20;
+  --acc-bg:#1d1a10;
+  --danger:#ff6b5e;
+  --ok:#5fd39a;
+  --warn:#f0b429;
+
+  --fs-xs:11px;   /* подписи групп, счётчики, строка состояния */
+  --fs-s:12px;    /* подписи полей, числа, кнопки */
+  --fs:13px;      /* основной текст, имена */
+
+  --r:4px;
+  --mono:'IBM Plex Mono',ui-monospace,'Cascadia Mono',Consolas,monospace;
+  --sans:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+  --disp:'Unbounded','IBM Plex Sans',system-ui,sans-serif;
+  --grain:none;
+}

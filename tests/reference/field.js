@@ -8,33 +8,8 @@
    плитки тождественно равен правому, верхний — нижнему, без «швов». */
 
 
-const NOISE_TYPES={
-  perlin:{label:'Перлин — облака',  octaves:true,  ridged:true,  warp:true },
-  value: {label:'Value — мягкий',   octaves:true,  ridged:true,  warp:true },
-  worley:{label:'Ворлей — пятна',   octaves:true,  ridged:false, warp:true },
-  grain: {label:'Зерно — плёнка',   octaves:false, ridged:false, warp:false}
-};
 
-/* Ячейка решётки мельче 2 px вырождается: у Перлина при ровно 1 px значение
-   в узлах тождественно ноль. Поэтому это предел и для октав, и для базы. */
-const MIN_CELL_PX=2;
 
-/** Число ячеек базовой октавы. Сверху ограничено физикой: ячейка ≥ 2 px. */
-function baseCells(n,W,H){
-  const lim=d=>Math.max(1,Math.floor(d/MIN_CELL_PX));
-  return [
-    Math.max(1,Math.min(lim(W),Math.round(W/n.sizeX))),
-    Math.max(1,Math.min(lim(H),Math.round(H/n.sizeY)))
-  ];
-}
-
-function maxOctavesFor(n,W,H){
-  const [cx,cy]=baseCells(n,W,H);
-  let o=1;
-  while(o<12 && cx*Math.pow(n.lacunarity,o)*MIN_CELL_PX<=W
-             && cy*Math.pow(n.lacunarity,o)*MIN_CELL_PX<=H) o++;
-  return o;
-}
 
 function fieldKey(n,W,H){
   return [W,H,n.type,n.sizeX,n.sizeY,n.seed,n.octaves,n.gain,n.lacunarity,

@@ -3,11 +3,6 @@
    Зависит от field.js и shape.js. */
 
 
-const BLEND_MODES={
-  normal:'Обычный', multiply:'Умножение', screen:'Экран', overlay:'Перекрытие',
-  'hard-light':'Жёсткий свет','soft-light':'Мягкий свет', add:'Сложение',
-  subtract:'Вычитание', darken:'Замена тёмным', lighten:'Замена светлым', difference:'Разница'
-};
 const BLEND_ID={normal:0,multiply:1,screen:2,overlay:3,'hard-light':4,'soft-light':5,
   add:6,subtract:7,darken:8,lighten:9,difference:10};
 

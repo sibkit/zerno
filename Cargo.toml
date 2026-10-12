@@ -1,0 +1,11 @@
+[workspace]
+members = ["engine", "app"]
+resolver = "3"
+
+[profile.release]
+lto = "thin"
+
+# Движок считает пиксели: даже в отладочной сборке приложения он должен быть
+# оптимизирован, иначе превью ощутимо тормозит и сбивает с толку при замерах.
+[profile.dev.package.zerno-engine]
+opt-level = 3
