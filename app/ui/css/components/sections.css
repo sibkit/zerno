@@ -1,22 +1,20 @@
-/* Разделы левой колонки — плитки бенто (вид плитки — в layout.css);
-   заголовки подгрупп внутри карточек. */
-.sec{flex:none}
+/* Складные разделы левой колонки и заголовки подгрупп внутри карточек. */
+.sec{border-bottom:1px solid var(--line)}
 .sec-h{
   display:flex;align-items:center;gap:9px;
   padding:13px 16px;cursor:pointer;
-  font:500 var(--fs-xs)/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;
-  color:var(--ink-2);
+  font:600 var(--fs)/1 var(--sans);color:var(--ink);
 }
-.sec-h:hover{color:var(--ink)}
-.sec-h .tick{width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;
+.sec-h:hover{background:var(--panel-2)}
+.sec-h .tick{width:7px;height:7px;border-right:1.5px solid var(--ink-3);border-bottom:1.5px solid var(--ink-3);
   transform:rotate(45deg) translate(-1px,-1px);transition:transform .18s;flex:none}
 .sec.closed .sec-h .tick{transform:rotate(-45deg) translate(-1px,1px)}
-.sec-h .cnt{margin-left:auto;color:var(--ink-3);letter-spacing:.04em;text-transform:none}
-.sec-b{padding:0 16px 16px}
+.sec-h .cnt{margin-left:auto;font:400 var(--fs-s)/1 var(--mono);color:var(--ink-3)}
+.sec-b{padding:2px 16px 16px}
 .sec.closed .sec-b{display:none}
 
 .sub-h{
-  font:500 var(--fs-xs)/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);
+  font:500 var(--fs-s)/1 var(--sans);color:var(--ink-3);
   padding:14px 0 6px;display:flex;align-items:center;gap:8px;
 }
 .sub-h::after{content:"";flex:1;height:1px;background:var(--line)}

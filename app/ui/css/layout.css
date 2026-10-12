@@ -1,23 +1,18 @@
-/* Каркас страницы — бенто: шапка, плитки рабочей области и строка состояния
-   лежат отдельными скруглёнными плитками на подложке, через зазор --gap.
-   Левая колонка — не плитка, а стопка плиток-разделов.
-   Здесь раскладка и общий вид плитки; содержимое — в components/. */
+/* Каркас страницы, как у приложения Claude: сплошные поверхности без зазоров.
+   Шапка и сцена — основная поверхность (--bg), боковые колонки — панели
+   (--panel) с тонкой границей. Здесь только раскладка и поверхности
+   областей; оформление содержимого — в components/. */
 
 /* шапка · рабочая область · строка состояния */
-.app{display:grid;grid-template-rows:auto 1fr auto;gap:var(--gap);height:100%;padding:var(--gap)}
-
-/* плитка бенто */
-.bar,.stage,.col-right,.status,.sec{
-  background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);
-}
+.app{display:grid;grid-template-rows:auto 1fr auto;height:100%}
 
 /* левая колонка · сцена · библиотека */
-.grid{display:grid;grid-template-columns:400px 1fr 280px;gap:var(--gap);min-height:0}
+.grid{display:grid;grid-template-columns:400px 1fr 280px;min-height:0;overflow:hidden}
 .grid.no-right{grid-template-columns:400px 1fr}
-.col{overflow-y:auto;overflow-x:hidden;position:relative;min-height:0}
-/* место под полосу прокрутки занято всегда: раскрытие раздела не сдвигает плитки */
-#colLeft{display:flex;flex-direction:column;gap:var(--gap);scrollbar-gutter:stable;padding-right:2px}
-.col-right{display:flex;flex-direction:column;overflow:hidden}
+.col{background:var(--panel);overflow-y:auto;overflow-x:hidden;position:relative;min-height:0}
+/* место под полосу прокрутки занято всегда: раскрытие раздела не сдвигает содержимое */
+#colLeft{border-right:1px solid var(--line);scrollbar-gutter:stable}
+.col-right{border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
 .grid.no-right .col-right{display:none}
 
 @media (max-width:1400px){

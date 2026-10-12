@@ -21,7 +21,7 @@
 }
 .ok-hex:focus{border-color:var(--acc-dim);color:var(--ink)}
 .ok-mode{display:flex;border:1px solid var(--line-2);border-radius:var(--r-s);overflow:hidden;flex:none}
-.ok-mode button{font:500 10px/1 var(--mono);letter-spacing:.04em;padding:5px 6px;cursor:pointer;
+.ok-mode button{font:500 var(--fs-xs)/1 var(--sans);padding:5px 7px;cursor:pointer;
   background:transparent;border:0;color:var(--ink-3)}
 .ok-mode button:hover{color:var(--ink)}
 .ok-mode button.on{background:var(--acc-bg);color:var(--acc)}

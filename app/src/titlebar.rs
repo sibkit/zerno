@@ -7,11 +7,11 @@
 //! сообщением (см. `titlebar_error`), полоса остаётся системной.
 
 /// Фон полосы — `--bg`.
-pub const CAPTION: &str = "#120d0a";
+pub const CAPTION: &str = "#262624";
 /// Текст заголовка — `--ink`.
-pub const TEXT: &str = "#f1e6d6";
+pub const TEXT: &str = "#faf9f5";
 /// Рамка окна — `--line`.
-pub const BORDER: &str = "#382a21";
+pub const BORDER: &str = "#3a3936";
 
 /// `#rrggbb` → COLORREF (0x00BBGGRR).
 fn colorref(hex: &str) -> Result<u32, String> {

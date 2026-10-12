@@ -1,5 +1,5 @@
 "use strict";
-/* ЗЕРНО · встроенный пресет, зерно на хроме панелей и запуск.
+/* ЗЕРНО · встроенный пресет и запуск.
    Загружается последним: восстанавливает сессию, собирает панели, запускает рендер. */
 
 
@@ -27,23 +27,6 @@ function defaultDocRaw(){
        low:{h:258,s:0.05,l:0,a:0.075}, high:{h:258,s:0.05,l:1,a:0.075}}
     ]
   };
-}
-
-/* Плёнка на хроме панелей — тот же движок, что считает плитки. */
-async function makeChromeGrain(){
-  const g=validateDoc({
-    format:FORMAT,version:DOC_VERSION,name:'ui',
-    tile:{width:128,height:128},
-    render:{stopMix:'srgb-linear',dither:{mode:'off',amount:0},webpQuality:1},
-    background:{h:0,s:0,l:0.5,a:1},
-    channels:[{id:'g',name:'g',enabled:true,blend:'normal',opacity:1,
-      noise:{type:'grain',sizeX:1,sizeY:1,seed:4242,octaves:1,gain:0.5,lacunarity:2,ridged:false,
-             warpAmount:0,warpSize:128,worleyMode:'f1',worleyJitter:1,grainHp:2,
-             shape:{contrast:0,bias:0,gamma:1,invert:false,normalize:true}},
-      low:{h:0,s:0,l:0.44,a:1},high:{h:0,s:0,l:0.56,a:1}}]
-  },'ui-grain');
-  const [t]=await renderTiles([{doc:g,width:128,height:128}]);
-  document.documentElement.style.setProperty('--grain','url("'+tileToCanvas(t).toDataURL('image/png')+'")');
 }
 
 async function showEngine(){
@@ -86,7 +69,6 @@ async function boot(){
   showEngine().catch(e=>toast('Сведения о движке: '+e.message,true));
   call('titlebar_error').then(e=>{ if(e!==null) toast(e,true); })
     .catch(e=>toast('Цвет полосы заголовка: '+e.message,true));
-  makeChromeGrain().catch(e=>toast('Зерно оформления не построено: '+e.message,true));
   makeTypeThumbs().catch(e=>toast('Миниатюры типов шума не построены: '+e.message,true));
   reloadLibrary().catch(e=>libStatus('Библиотека: '+e.message,true));
 }

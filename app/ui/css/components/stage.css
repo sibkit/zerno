@@ -1,16 +1,12 @@
-/* Сцена (плитка бенто): панель просмотра и поле с замощением. */
-.stage{display:grid;grid-template-rows:auto 1fr;min-width:0;min-height:0;overflow:hidden}
+/* Сцена — основная поверхность: панель просмотра и поле с замощением. */
+.stage{display:grid;grid-template-rows:auto 1fr;min-width:0;min-height:0;overflow:hidden;background:var(--bg)}
 .stage-bar{
   display:flex;align-items:center;gap:10px;flex-wrap:wrap;
   padding:8px 12px;border-bottom:1px solid var(--line);
-  position:relative;
 }
-.stage-bar::after{content:"";position:absolute;inset:0;
-  background-image:var(--grain);mix-blend-mode:overlay;opacity:.5;pointer-events:none}
-.stage-bar>*{position:relative;z-index:1}
 .sgroup{display:flex;align-items:center;gap:6px}
 .sgroup.end{margin-left:auto}
-.sgroup>span{font:400 var(--fs-xs)/1 var(--sans);color:var(--ink-3)}
+.sgroup>span{font:400 var(--fs-s)/1 var(--sans);color:var(--ink-3)}
 input.zoom{width:80px}
 .zval{font:500 var(--fs-s)/1 var(--mono);color:var(--ink);min-width:46px;text-align:right}
 .surr{display:flex;gap:3px}

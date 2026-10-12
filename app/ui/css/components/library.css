@@ -1,8 +1,8 @@
-/* Библиотека пресетов (плитка бенто): шапка, путь к папке, миниатюры. */
+/* Библиотека пресетов: шапка, путь к папке, миниатюры. */
 .lib-h{padding:13px 12px 10px;border-bottom:1px solid var(--line)}
-.lib-t{font:500 var(--fs-xs)/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);
+.lib-t{font:600 var(--fs)/1 var(--sans);color:var(--ink);
   display:flex;align-items:center;gap:8px;margin-bottom:10px}
-.lib-t .cnt{margin-left:auto;color:var(--ink-3);letter-spacing:.04em}
+.lib-t .cnt{margin-left:auto;font:400 var(--fs-s)/1 var(--mono);color:var(--ink-3)}
 .lib-btns{display:flex;flex-wrap:wrap;gap:5px}
 .lib-status{
   font:400 var(--fs-xs)/1.45 var(--sans);color:var(--ink-3);padding:8px 12px;

@@ -165,7 +165,6 @@ const lastCall = cmd => calls.filter(c => c.cmd === cmd).pop();
     ok('цвета полосы заголовка (titlebar.rs) = токены --bg, --ink, --line', bad.length === 0, bad.join(','));
   }
   ok('сцена нарисована из плитки движка', $('field').dataset.tile === '512×512', $('field').dataset.tile);
-  ok('фоновое зерно интерфейса построено', D.documentElement.style.getPropertyValue('--grain').indexOf('url(') === 0);
   ok('движок — Rust, число потоков', $('stEngine').textContent === 'RUST · 4 пот.', $('stEngine').textContent);
   ok('документ не связан с файлом', $('fileName').textContent === 'не сохранён в файл', $('fileName').textContent);
   ok('отменять пока нечего', $('btnUndo').disabled && $('btnRedo').disabled);

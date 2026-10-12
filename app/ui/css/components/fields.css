@@ -49,13 +49,13 @@ option{background:var(--panel-2)}
 
 .chips{display:flex;flex-wrap:wrap;gap:5px;padding:6px 0 2px}
 .chip{
-  font:500 var(--fs-xs)/1 var(--mono);color:var(--ink-2);
+  font:500 var(--fs-s)/1 var(--sans);color:var(--ink-2);
   background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-s);
   padding:6px 8px;cursor:pointer;transition:.12s;
 }
 .chip:hover{color:var(--ink);border-color:var(--line-2)}
 /* «+ канал» с миниатюрой типа */
-.chip-add{display:inline-flex;align-items:center;gap:7px;padding:4px 8px 4px 4px}
+.chip-add{display:inline-flex;align-items:center;gap:7px;padding:4px 9px 4px 4px}
 .chip-thumb{width:18px;height:18px;border-radius:3px;flex:none;background:var(--well) center/cover;
   border:1px solid var(--line);image-rendering:auto}
 .chip.on{color:var(--acc);border-color:var(--acc-dim);background:var(--acc-bg)}
