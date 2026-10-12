@@ -1,7 +1,20 @@
 "use strict";
-/* ЗЕРНО · дизеринг и вывод: аккумулятор → ImageData → canvas.
-   Зависит от color.js и composite.js. */
+/* ЗЕРНО · ЭТАЛОН ДЛЯ ТЕСТОВ: в приложение не входит, считает движок на Rust (engine/).
+   дизеринг и вывод: аккумулятор → ImageData → canvas.
+   Зависит от ui/js/color.js, ui/js/model.js и composite.js. */
 
+
+/* Таблица линейный → sRGB, чтобы убрать Math.pow из горячего цикла. */
+const SR_N=16385;
+const SRLUT=new Float32Array(SR_N);
+for(let i=0;i<SR_N;i++) SRLUT[i]=srgbTransfer(i/(SR_N-1));
+function lin2srgb(a){
+  if(a<=0) return 0;
+  if(a>=1) return 1;
+  const f=a*(SR_N-1), i=f|0, t=f-i;
+  const v0=SRLUT[i], v1=SRLUT[i+1];
+  return v0+(v1-v0)*t;
+}
 
 const BAYER8=(function(){
   const m=new Float32Array(64);

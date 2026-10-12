@@ -4,24 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ЗЕРНО — генератор бесшовного шума</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 
-<!-- Оформление. Порядок важен: токены → база → каркас → компоненты. -->
-<link rel="stylesheet" href="static/css/tokens.css">
-<link rel="stylesheet" href="static/css/base.css">
-<link rel="stylesheet" href="static/css/layout.css">
-<link rel="stylesheet" href="static/css/components/topbar.css">
-<link rel="stylesheet" href="static/css/components/buttons.css">
-<link rel="stylesheet" href="static/css/components/sections.css">
-<link rel="stylesheet" href="static/css/components/fields.css">
-<link rel="stylesheet" href="static/css/components/color-editor.css">
-<link rel="stylesheet" href="static/css/components/channels.css">
-<link rel="stylesheet" href="static/css/components/stage.css">
-<link rel="stylesheet" href="static/css/components/library.css">
-<link rel="stylesheet" href="static/css/components/status.css">
-<link rel="stylesheet" href="static/css/components/toast.css">
+<!-- Оформление. Порядок важен: шрифты → токены → база → каркас → компоненты. -->
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components/topbar.css">
+<link rel="stylesheet" href="css/components/buttons.css">
+<link rel="stylesheet" href="css/components/sections.css">
+<link rel="stylesheet" href="css/components/fields.css">
+<link rel="stylesheet" href="css/components/color-editor.css">
+<link rel="stylesheet" href="css/components/channels.css">
+<link rel="stylesheet" href="css/components/stage.css">
+<link rel="stylesheet" href="css/components/library.css">
+<link rel="stylesheet" href="css/components/status.css">
+<link rel="stylesheet" href="css/components/toast.css">
 </head>
 <body>
 <div class="app">
@@ -29,18 +27,29 @@
   <header class="bar">
     <div class="brand">
       <span class="mark">ЗЕР<b>Н</b>О</span>
-      <span class="sub">бесшовный шум · okhsl</span>
+      <span class="sub">бесшовный шум</span>
+    </div>
+    <div class="bar-group">
+      <button class="btn icon" id="btnUndo" title="Отменить (Ctrl+Z)" disabled>↶</button>
+      <button class="btn icon" id="btnRedo" title="Повторить (Ctrl+Y)" disabled>↷</button>
     </div>
     <div class="bar-mid">
-      <input id="docName" class="name-input" spellcheck="false" placeholder="имя пресета">
+      <div class="name-wrap" id="nameWrap">
+        <input id="docName" class="name-input" spellcheck="false" placeholder="имя пресета">
+        <span class="dirty-dot" title="Есть несохранённые изменения"></span>
+      </div>
+      <span class="file-name" id="fileName"></span>
     </div>
-    <div class="bar-actions">
+    <div class="bar-group">
+      <button class="btn" id="btnOpen" title="Открыть пресет (Ctrl+O). Файл можно и просто бросить на окно.">Открыть</button>
+      <button class="btn" id="btnSave" title="Сохранить (Ctrl+S)">Сохранить</button>
+      <button class="btn" id="btnSaveAs" title="Сохранить как… (Ctrl+Shift+S)">Как…</button>
+    </div>
+    <div class="bar-sep"></div>
+    <div class="bar-group">
       <button class="btn" id="btnCss" title="Скопировать CSS с data-URI плитки">CSS</button>
-      <button class="btn" id="btnImport">Импорт</button>
-      <button class="btn" id="btnJson">JSON</button>
       <button class="btn" id="btnWebp">WEBP</button>
-      <button class="btn acc" id="btnPng">PNG</button>
-      <input type="file" id="fileJson" accept=".json,application/json" multiple hidden>
+      <button class="btn acc" id="btnPng" title="Экспорт PNG (Ctrl+E)">PNG</button>
     </div>
   </header>
 
@@ -48,24 +57,24 @@
 
     <aside class="col" id="colLeft"></aside>
 
-    <section class="stage">
+    <section class="stage" id="stage">
       <div class="stage-bar">
         <div class="sgroup">
           <span>масштаб</span>
-          <input type="range" class="zoom" id="zoom" min="-2" max="3" step="0.02" value="0">
+          <input type="range" class="zoom" id="zoom" min="-2" max="3" step="0.02" value="0" title="Ctrl + колесо над плиткой">
           <span class="zval" id="zval">100%</span>
-          <button class="btn sm" id="zreset">1:1</button>
+          <button class="btn sm" id="zreset" title="Ctrl+0">1:1</button>
         </div>
         <div class="sgroup">
           <span>фон</span>
           <div class="surr" id="surr"></div>
         </div>
         <div class="sgroup">
-          <button class="btn sm" id="tGrid">Границы плиток</button>
-          <button class="btn sm" id="tShift">Сдвиг ½</button>
-          <button class="btn sm" id="tSmooth">Сглаживание</button>
+          <button class="btn sm" id="tGrid" title="Сетка по краям плиток">Границы</button>
+          <button class="btn sm" id="tShift" title="Сдвиг раскладки на половину плитки: стык в центре">Сдвиг ½</button>
+          <button class="btn sm" id="tSmooth" title="Сглаживание при увеличении">Сглаж.</button>
         </div>
-        <div class="sgroup" style="margin-left:auto">
+        <div class="sgroup end">
           <button class="btn sm" id="tLib">Библиотека</button>
         </div>
       </div>
@@ -82,15 +91,13 @@
       <div class="lib-h">
         <div class="lib-t">Библиотека <span class="cnt" id="libCount">0</span></div>
         <div class="lib-btns">
-          <button class="btn sm" id="libDir" title="File System Access API — с записью обратно в папку">Папка</button>
-          <button class="btn sm" id="libPick" title="Выбрать папку через file-input (работает везде)">Обзор…</button>
-          <button class="btn sm" id="libSave" title="Сохранить текущий пресет в подключённую папку">Сохранить</button>
-          <button class="btn sm" id="libReload">↻</button>
+          <button class="btn sm" id="libDir" title="Выбрать папку с пресетами">Папка…</button>
+          <button class="btn sm" id="libReveal" title="Открыть папку в проводнике">↗</button>
+          <button class="btn sm" id="libReload" title="Перечитать папку">↻</button>
         </div>
       </div>
-      <div class="lib-status" id="libStatus">Папка не подключена.</div>
+      <div class="lib-status" id="libStatus"></div>
       <div class="lib-grid" id="libGrid"></div>
-      <input type="file" id="fileDir" webkitdirectory directory multiple hidden>
     </aside>
 
   </main>
@@ -101,28 +108,26 @@
     <div class="it">каналов <b id="stCh">0</b></div>
     <div class="it">рендер <b id="stMs">—</b></div>
     <div class="it">движок <b id="stEngine">—</b></div>
-    <div class="it" id="stSeam">стыковка: <b style="color:var(--ok)">точная</b></div>
+    <div class="it">стыковка: <b style="color:var(--ok)">точная</b></div>
   </footer>
 </div>
 
 <div class="toast" id="toast"></div>
 
-<!-- Обычные скрипты, а не модули: страница должна работать и по file://,
-     где ES-модули запрещены политикой источника. Порядок — снизу вверх по
-     зависимостям: движок → документ → интерфейс → запуск. -->
-<script src="static/js/color.js"></script>
-<script src="static/js/lattice.js"></script>
-<script src="static/js/field.js"></script>
-<script src="static/js/shape.js"></script>
-<script src="static/js/composite.js"></script>
-<script src="static/js/dither.js"></script>
-<script src="static/js/doc.js"></script>
-<script src="static/js/ui-kit.js"></script>
-<script src="static/js/panels.js"></script>
-<script src="static/js/engine.js"></script>
-<script src="static/js/render.js"></script>
-<script src="static/js/library.js"></script>
-<script src="static/js/transfer.js"></script>
-<script src="static/js/boot.js"></script>
+<!-- Обычные скрипты, а не модули: общая глобальная область, порядок — снизу
+     вверх по зависимостям. Считает Rust (window.__TAURI__), здесь только
+     интерфейс и модель документа. -->
+<script src="js/color.js"></script>
+<script src="js/model.js"></script>
+<script src="js/doc.js"></script>
+<script src="js/ui-kit.js"></script>
+<script src="js/history.js"></script>
+<script src="js/panels.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/render.js"></script>
+<script src="js/library.js"></script>
+<script src="js/transfer.js"></script>
+<script src="js/keys.js"></script>
+<script src="js/boot.js"></script>
 </body>
 </html>

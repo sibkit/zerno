@@ -1,6 +1,6 @@
 "use strict";
 /* ЗЕРНО · встроенный пресет, зерно на хроме панелей и запуск.
-   Загружается последним: собирает панели, определяет движок, запускает рендер. */
+   Загружается последним: восстанавливает сессию, собирает панели, запускает рендер. */
 
 
 function defaultDocRaw(){
@@ -29,7 +29,8 @@ function defaultDocRaw(){
   };
 }
 
-function makeChromeGrain(){
+/* Плёнка на хроме панелей — тот же движок, что считает плитки. */
+async function makeChromeGrain(){
   const g=validateDoc({
     format:FORMAT,version:DOC_VERSION,name:'ui',
     tile:{width:128,height:128},
@@ -41,62 +42,51 @@ function makeChromeGrain(){
              shape:{contrast:0,bias:0,gamma:1,invert:false,normalize:true}},
       low:{h:0,s:0,l:0.44,a:1},high:{h:0,s:0,l:0.56,a:1}}]
   },'ui-grain');
-  const url=renderToCanvas(g).toDataURL('image/png');
-  document.documentElement.style.setProperty('--grain','url("'+url+'")');
+  const [t]=await renderTiles([{doc:g,width:128,height:128}]);
+  document.documentElement.style.setProperty('--grain','url("'+tileToCanvas(t).toDataURL('image/png')+'")');
 }
 
-async function initLibrarySource(){
-  if(engineInfo.mode==='zig'){
-    try{
-      await loadLibraryFromServer();
-      return;
-    }catch(e){ libStatus('Сервер не отдал библиотеку: '+e.message,'err'); }
-  }
-  try{
-    if(await restoreDir()) return;
-  }catch(e){ libStatus('Не удалось восстановить папку: '+e.message,'err'); }
-  try{
-    if(await tryHttpIndex()) return;
-  }catch(e){ libStatus('./noises/: '+e.message,'err'); }
-  libStatus('Папка не подключена. «Папка» — Chrome/Edge, с сохранением обратно. '+
-            '«Обзор…» — любой браузер, только чтение. По http:// список берётся из ./noises/index.json.');
-}
-
-function showEngine(){
+async function showEngine(){
+  const i=await call('engine_info');
   const e=$('stEngine');
-  if(engineInfo.mode==='zig'){
-    e.textContent='ZIG · '+engineInfo.threads+' пот.';
-    e.style.color='var(--ok)';
-    e.title='zerno.exe '+engineInfo.version+' (Zig '+engineInfo.zig+'), потоков: '+engineInfo.threads;
-  }else{
-    e.textContent='JS · браузер';
-    e.style.color='var(--acc)';
-    e.title='Считает браузер: '+engineInfo.reason+
-      '. Для нативной скорости запустите zerno.exe и откройте http://127.0.0.1:8787/';
-  }
+  e.textContent='RUST · '+i.threads+' пот.';
+  e.style.color='var(--ok)';
+  e.title='zerno-engine '+i.version+', потоков: '+i.threads+
+    '\nкэш полей: '+i.cacheEntries+' шт., '+(i.cacheBytes/1048576).toFixed(1)+' МБ, попаданий '+i.cacheHits+' / промахов '+i.cacheMisses;
+}
+
+function fatal(msg){
+  document.body.innerHTML='';
+  const pre=document.createElement('pre');
+  pre.style.cssText='padding:40px;color:#ff6b5e;font:14px/1.5 monospace;white-space:pre-wrap';
+  pre.textContent=msg;
+  document.body.appendChild(pre);
 }
 
 async function boot(){
-  try{
-    doc=validateDoc(defaultDocRaw(),'встроенный пресет');
-  }catch(e){
-    document.body.innerHTML='<pre style="padding:40px;color:#ff5f52;font:14px monospace">'+
-      'Встроенный пресет не прошёл проверку:\n'+e.message+'</pre>';
-    return;
-  }
-  $('docName').value=doc.name;
-  buildLeft();
+  try{ tauri(); }
+  catch(e){ fatal(e.message+'\nЗапустите приложение zerno.exe.'); return; }
+  let start;
+  try{ start=validateDoc(defaultDocRaw(),'встроенный пресет'); }
+  catch(e){ fatal('Встроенный пресет не прошёл проверку:\n'+e.message); return; }
+
+  initHistory();
   initStage();
   initLib();
   initExport();
+  initKeys();
+  document.addEventListener('zerno:colormode',()=>buildLeft());
   $('stageView').style.background=SURROUND[1];
-  try{ makeChromeGrain(); }
-  catch(e){ console.warn('Фоновое зерно интерфейса не построено:',e); }
 
-  await detectEngine();
-  showEngine();
-  scheduleRender();
-  initLibrarySource();
+  let session=null;
+  try{ session=readSession(); }
+  catch(e){ toast('Прошлая сессия не восстановлена: '+e.message+'\nОткрыт встроенный пресет.',true); }
+  if(session) openDocument(session.doc,session.file,false);
+  else openDocument(start,null,false);
+
+  showEngine().catch(e=>toast('Сведения о движке: '+e.message,true));
+  makeChromeGrain().catch(e=>toast('Зерно оформления не построено: '+e.message,true));
+  reloadLibrary().catch(e=>libStatus('Библиотека: '+e.message,true));
 }
 
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot);

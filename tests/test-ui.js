@@ -1,10 +1,18 @@
 // Прогон интерфейса ЗЕРНО в jsdom: сборка панелей и реальные взаимодействия.
+//
+// Приложения здесь нет — window.__TAURI__ подменён заглушкой: команда render
+// считается эталонным движком на JS (tests/reference), файлы и диалоги
+// записываются в журнал вызовов и отвечают заранее заданным.
 const fs = require('fs');
-const { ROOT, appCode, shell: pageShell } = require('./load-app.js');
+const { ROOT, appCode, coreCode, shell: pageShell } = require('./load-app.js');
 const { JSDOM, VirtualConsole } = require('jsdom');
 
-const code = appCode();
-const shell = pageShell();
+class NodeImageData { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); } }
+const REF = new Function('ImageData', coreCode() + '\nreturn {composeDoc,accToImageData,validateDoc};')(NodeImageData);
+
+const PRESETS = fs.readdirSync(ROOT + '/noises').filter(f => /\.json$/i.test(f)).sort()
+  .map(n => ({ name: n, text: fs.readFileSync(ROOT + '/noises/' + n, 'utf8') }));
+const LIB_DIR = 'D:\\lib';
 
 const errors = [];
 const vc = new VirtualConsole();
@@ -12,7 +20,7 @@ vc.on('jsdomError', err => errors.push('jsdomError: ' + err.message));
 vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
 vc.on('warn', () => {});
 
-const dom = new JSDOM(shell, { runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc, url: 'file:///D:/x/index.html' });
+const dom = new JSDOM(pageShell(), { runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc, url: 'http://localhost/' });
 const win = dom.window;
 
 // ---- заглушки canvas (jsdom не рисует) ----
@@ -28,9 +36,11 @@ proto.getContext = function () {
 proto.toBlob = function (cb, type) { cb(new win.Blob(['x'], { type: type || 'image/png' })); };
 proto.toDataURL = function (type) { return 'data:' + (type || 'image/png') + ';base64,AAAA'; };
 if (!win.ImageData) {
-  win.ImageData = class { constructor(w, h) { this.width = w; this.height = h; this.data = new win.Uint8ClampedArray(w * h * 4); } };
+  win.ImageData = class { constructor(data, w, h) { this.data = data; this.width = w; this.height = h; } };
 }
 if (!win.URL.createObjectURL) { win.URL.createObjectURL = () => 'blob:stub'; win.URL.revokeObjectURL = () => {}; }
+let clip = null;
+Object.defineProperty(win.navigator, 'clipboard', { value: { writeText: async t => { clip = t; } }, configurable: true });
 win.addEventListener('error', ev => errors.push('window.error: ' + (ev.error ? ev.error.stack : ev.message)));
 win.addEventListener('unhandledrejection', ev => errors.push('unhandledrejection: ' + (ev.reason && ev.reason.message)));
 
@@ -38,8 +48,48 @@ win.addEventListener('unhandledrejection', ev => errors.push('unhandledrejection
 Object.defineProperty(win.HTMLElement.prototype, 'clientWidth', { get() { return 900; }, configurable: true });
 Object.defineProperty(win.HTMLElement.prototype, 'clientHeight', { get() { return 600; }, configurable: true });
 
-// strict-eval не выносит объявления в глобальную область — пробрасываем нужное явно
-try { win.eval(code + ';window.__api={importFiles:importFiles};'); } catch (err) { errors.push('eval: ' + err.stack); }
+// ---- заглушка приложения ----
+const calls = [];          // журнал: {cmd, args, opts}
+const answers = {};        // cmd → значение, которое вернёт следующий вызов (одноразово)
+let libState = { dir: null, files: [], errors: [] };
+let dropHandler = null;
+
+function zrn1(jobs) {
+  const tiles = jobs.map(j => {
+    const d = REF.validateDoc(j.doc, 'запрос');
+    return { w: j.width, h: j.height, px: REF.accToImageData(REF.composeDoc(d, j.width, j.height), j.width, j.height, d.render.dither).data };
+  });
+  const size = 8 + 8 * tiles.length + tiles.reduce((s, t) => s + t.px.length, 0);
+  const buf = new win.ArrayBuffer(size);
+  const dv = new DataView(buf), u8 = new Uint8Array(buf);
+  u8.set([0x5a, 0x52, 0x4e, 0x31]);
+  dv.setUint32(4, tiles.length, true);
+  let off = 8;
+  for (const t of tiles) { dv.setUint32(off, t.w, true); dv.setUint32(off + 4, t.h, true); off += 8; }
+  for (const t of tiles) { u8.set(t.px, off); off += t.px.length; }
+  return buf;
+}
+
+async function invoke(cmd, args, opts) {
+  calls.push({ cmd, args, opts });
+  if (cmd in answers) { const v = answers[cmd]; delete answers[cmd]; if (v instanceof Error) throw v.message; return v; }
+  switch (cmd) {
+    case 'engine_info': return { version: '2.0.0', threads: 4, cacheEntries: 0, cacheBytes: 0, cacheHits: 0, cacheMisses: 0, renders: 0 };
+    case 'render':
+      try { return zrn1(args.request.jobs); } catch (e) { throw e.message; }   // Tauri отдаёт ошибку строкой
+    case 'library_state': return libState;
+    case 'library_reveal': return null;
+    case 'doc_save': return null;
+    default: throw 'заглушка: команда «' + cmd + '» не ожидалась в этом шаге';
+  }
+}
+win.__TAURI__ = {
+  core: { invoke },
+  dialog: { ask: async () => true },
+  webview: { getCurrentWebview: () => ({ onDragDropEvent: async cb => { dropHandler = cb; return () => {}; } }) }
+};
+
+try { win.eval(appCode() + ';window.__api={get doc(){return doc;},serializeDoc:serializeDoc};'); } catch (err) { errors.push('eval: ' + err.stack); }
 
 const D = win.document;
 const $ = id => D.getElementById(id);
@@ -68,38 +118,50 @@ function drainErrors(label, ignore) {
   else console.log('  ✓ ' + label);
 }
 function ev(el, type) { el.dispatchEvent(new win.Event(type, { bubbles: true })); }
+function key(code, k, mods) {
+  D.body.dispatchEvent(new win.KeyboardEvent('keydown', Object.assign({ code, key: k, bubbles: true, cancelable: true, ctrlKey: true }, mods || {})));
+}
 function setRange(el, v) { el.value = String(v); ev(el, 'input'); }
 function setSelect(el, v) { el.value = v; ev(el, 'change'); }
 function setText(el, v) { el.value = v; ev(el, 'change'); }
+const cards = () => $('colLeft').querySelectorAll('.card');
+const api = () => win.__api;
+const lastCall = cmd => calls.filter(c => c.cmd === cmd).pop();
 
 (async () => {
-  await step(150);
+  await step(200);
 
   console.log('\n[A] Стартовая сборка');
   drainErrors('загрузка без ошибок');
   ok('заголовок документа заполнен', $('docName').value.length > 0, $('docName').value);
-  const secs = $('colLeft').querySelectorAll('.sec');
-  ok('в левой колонке 4 раздела', secs.length === 4, secs.length + ' шт');
-  ok('карточек каналов 3', $('colLeft').querySelectorAll('.card').length === 3);
+  ok('в левой колонке 4 раздела', $('colLeft').querySelectorAll('.sec').length === 4);
+  ok('карточек каналов 3', cards().length === 3);
   ok('статус «готов»', $('stState').textContent === 'готов', $('stState').textContent);
   ok('размер плитки в статусе', $('stTile').textContent === '512×512 px', $('stTile').textContent);
   ok('время рендера показано', /\d+ мс/.test($('stMs').textContent), $('stMs').textContent);
   ok('превью получило фоновую картинку', /url\(/.test($('field').style.backgroundImage));
-  ok('фоновое зерно интерфейса построено',
-    D.documentElement.style.getPropertyValue('--grain').indexOf('url(') === 0);
-  ok('движок помечен как браузерный', /JS/.test($('stEngine').textContent), $('stEngine').textContent);
-  ok('слайдеров в панели много', $('colLeft').querySelectorAll('input[type=range]').length > 20,
-     $('colLeft').querySelectorAll('input[type=range]').length + ' шт');
+  ok('фоновое зерно интерфейса построено', D.documentElement.style.getPropertyValue('--grain').indexOf('url(') === 0);
+  ok('движок — Rust, число потоков', $('stEngine').textContent === 'RUST · 4 пот.', $('stEngine').textContent);
+  ok('документ не связан с файлом', $('fileName').textContent === 'не сохранён в файл', $('fileName').textContent);
+  ok('отменять пока нечего', $('btnUndo').disabled && $('btnRedo').disabled);
+  ok('библиотека без папки объясняет, что делать', /не выбрана/.test($('libStatus').textContent), $('libStatus').textContent.slice(0, 50));
 
-  console.log('\n[B] Смена размера плитки');
-  const chips = $('colLeft').querySelectorAll('.sec .chip');
-  const c256 = Array.from(chips).find(c => c.textContent === '256²');
-  c256.click();
-  await step(150);
-  drainErrors('переключение на 256² без ошибок');
-  ok('плитка стала 256×256', $('stTile').textContent === '256×256 px', $('stTile').textContent);
-  const onChip = $('colLeft').querySelector('.sec .chip.on');
-  ok('чип 256² подсвечен', onChip && onChip.textContent === '256²', onChip && onChip.textContent);
+  console.log('\n[B] Плитка: фишки и ползунок');
+  {
+    Array.from($('colLeft').querySelectorAll('.sec .chip')).find(c => c.textContent === '256²').click();
+    await step(150);
+    ok('плитка стала 256×256', $('stTile').textContent === '256×256 px', $('stTile').textContent);
+    const on = $('colLeft').querySelector('.sec .chip.on');
+    ok('фишка 256² подсвечена', on && on.textContent === '256²');
+    const wRange = $('colLeft').querySelector('.sec .row input[type=range]');
+    setRange(wRange, 300); await step(120);
+    ok('ползунок ширины не пересобрал колонку (перетаскивание не оборвётся)', wRange.isConnected);
+    ok('плитка 300×256', $('stTile').textContent === '300×256 px', $('stTile').textContent);
+    ok('фишка погашена', !$('colLeft').querySelector('.sec .chip.on'));
+    setRange(wRange, 256); await step(120);
+    ok('фишка 256² снова подсвечена', !!$('colLeft').querySelector('.sec .chip.on'));
+    drainErrors('плитка без ошибок');
+  }
 
   console.log('\n[C] Добавление канала каждого типа');
   for (const label of ['+ Перлин — облака', '+ Value — мягкий', '+ Ворлей — пятна', '+ Зерно — плёнка']) {
@@ -108,134 +170,166 @@ function setText(el, v) { el.value = v; ev(el, 'change'); }
     if (btn) { btn.click(); await step(120); }
   }
   drainErrors('добавление 4 каналов без ошибок');
-  ok('каналов стало 7', $('colLeft').querySelectorAll('.card').length === 7,
-     $('colLeft').querySelectorAll('.card').length + ' шт');
+  ok('каналов стало 7', cards().length === 7, cards().length + ' шт');
   ok('счётчик каналов в статусе', $('stCh').textContent === '7 / 7', $('stCh').textContent);
 
   console.log('\n[D] Перебор всех типов шума в одной карточке');
-  {
-    const card = $('colLeft').querySelectorAll('.card')[0];
-    card.classList.add('open');
-    const typeSel = card.querySelector('select');
-    for (const t of ['value', 'worley', 'grain', 'perlin']) {
-      setSelect(card.querySelector('select'), t);
-      await step(120);
-      const cur = $('colLeft').querySelectorAll('.card')[0].querySelector('select').value;
-      ok('тип переключён на ' + t, cur === t, cur);
-    }
-    drainErrors('перебор типов без ошибок');
+  for (const t of ['value', 'worley', 'grain', 'perlin']) {
+    setSelect(cards()[0].querySelector('select'), t);
+    await step(120);
+    ok('тип переключён на ' + t, cards()[0].querySelector('select').value === t);
   }
+  drainErrors('перебор типов без ошибок');
 
-  console.log('\n[E] Все режимы смешивания и искажение домена');
+  console.log('\n[E] Режимы смешивания и искажение домена');
   {
-    const card = $('colLeft').querySelectorAll('.card')[0];
-    const sels = card.querySelectorAll('select');
-    const blendSel = sels[sels.length - 1];
-    const modes = Array.from(blendSel.options).map(o => o.value);
+    const sels = () => cards()[0].querySelectorAll('select');
+    const modes = Array.from(sels()[sels().length - 1].options).map(o => o.value);
     ok('в списке 11 режимов', modes.length === 11, modes.length + ' шт');
-    for (const m of modes) { setSelect(card.querySelectorAll('select')[card.querySelectorAll('select').length - 1], m); await step(60); }
+    for (const m of modes) { setSelect(sels()[sels().length - 1], m); await step(40); }
     drainErrors('все режимы смешивания отрисованы');
-
-    // включаем искажение домена — появляется дополнительная строка «Масштаб иск.»
-    const c2 = $('colLeft').querySelectorAll('.card')[0];
-    const rows = Array.from(c2.querySelectorAll('.row'));
-    const warpRow = rows.find(r => r.querySelector('label') && r.querySelector('label').textContent === 'Искажение');
+    const warpRow = Array.from(cards()[0].querySelectorAll('.row'))
+      .find(r => r.querySelector('label') && r.querySelector('label').textContent === 'Искажение');
     ok('строка «Искажение» есть', !!warpRow);
     if (warpRow) { setRange(warpRow.querySelector('input[type=range]'), 60); await step(150); }
     drainErrors('искажение домена без ошибок');
   }
 
-  console.log('\n[F] Правка цвета: слайдеры и HEX');
+  console.log('\n[F] Цвет: HSL, HEX');
   {
-    const card = $('colLeft').querySelectorAll('.card')[0];
-    const oks = card.querySelectorAll('.ok');
+    const oks = cards()[0].querySelectorAll('.ok');
     ok('в карточке два редактора цвета', oks.length === 2, oks.length + ' шт');
+    oks[1].querySelector('.ok-h').click();
+    ok('редактор раскрывается по клику', oks[1].classList.contains('open'));
+    const labels = Array.from(oks[1].querySelectorAll('.row label')).map(l => l.textContent).join('');
+    ok('режим HSL: ползунки H S L A', labels === 'HSLA', labels);
     const hue = oks[1].querySelectorAll('input[type=range]')[0];
     setRange(hue, 200); await step(120);
-    ok('слайдер H применился', Math.abs(parseFloat(hue.value) - 200) < 1, hue.value);
-    ok('трек слайдера получил градиент', /linear-gradient/.test(hue.style.getPropertyValue('--trk')));
+    ok('ползунок H применился', Math.abs(parseFloat(hue.value) - 200) < 1, hue.value);
+    ok('шкала ползунка получила градиент', /linear-gradient/.test(hue.style.getPropertyValue('--trk')));
     const hex = oks[1].querySelector('.ok-hex');
     setText(hex, '#E8C547'); await step(120);
     ok('HEX применён и нормализован', /^#E8C5[34][0-9A-F]$/.test(hex.value), hex.value);
     setText(hex, 'мусор'); await step(60);
     ok('плохой HEX отвергнут и поле восстановлено', /^#[0-9A-F]{6}$/.test(hex.value), hex.value);
-    ok('показан тост об ошибке', $('toast').classList.contains('on') && /HEX/.test($('toast').textContent),
-       $('toast').textContent.slice(0, 60));
+    ok('показан тост об ошибке', $('toast').classList.contains('err') && /HEX/.test($('toast').textContent));
     drainErrors('правка цвета без ошибок', /Некорректный HEX/);
   }
 
-  console.log('\n[G] Числовое поле: ввод, границы, скраб');
+  console.log('\n[F2] Цвет: OKLCH');
   {
-    const card = $('colLeft').querySelectorAll('.card')[0];
-    const num = card.querySelector('.num');
-    setText(num, '999999'); await step(120);
-    ok('значение выше максимума обрезано', parseFloat(num.value) <= 1024, num.value);
-    setText(num, '-50'); await step(120);
-    ok('значение ниже минимума обрезано', parseFloat(num.value) >= 2, num.value);
-    setText(num, '12,5'); await step(120);
-    ok('запятая как разделитель принята', Math.abs(parseFloat(num.value) - 12.5) < 0.01, num.value);
-    const before = num.value;
-    num.dispatchEvent(new win.Event('pointerdown'));
-    num.dispatchEvent(new win.Event('pointermove'));
-    num.dispatchEvent(new win.Event('pointerup'));
+    const before = JSON.stringify(api().serializeDoc(api().doc).channels[0].high);
+    cards()[0].querySelectorAll('.ok')[1].querySelectorAll('.ok-mode button')[1].click();
     await step(80);
-    ok('скраб без координат не портит значение (защита от NaN)', num.value === before, num.value + ' было ' + before);
-    drainErrors('числовые поля без ошибок');
+    const box = cards()[0].querySelectorAll('.ok')[1];
+    ok('после пересборки редактор остался раскрытым', box.classList.contains('open'));
+    const labels = Array.from(box.querySelectorAll('.row label')).map(l => l.textContent).join('');
+    ok('режим LCH: ползунки L C H A', labels === 'LCHA', labels);
+    ok('переключение режима цвет не меняет', JSON.stringify(api().serializeDoc(api().doc).channels[0].high) === before);
+    ok('режим запомнен', win.localStorage.getItem('zerno.colorMode') === 'oklch');
+    const [L, C] = box.querySelectorAll('input[type=range]');
+    setRange(L, 0.5); setRange(C, 0.33); await step(100);
+    const note = box.querySelector('.ok-note');
+    ok('хрома за гамутом снижена и это подписано', note.style.display !== 'none' && /гамута/.test(note.textContent), note.textContent);
+    const hsl = api().doc.channels[0].high;
+    ok('цвет остался в OKHSL внутри гамута', hsl.s <= 1 + 1e-9 && hsl.s >= 0.99, hsl.s);
+    setRange(C, 0.02); await step(100);
+    ok('в гамуте подпись скрыта', note.style.display === 'none');
+    box.querySelectorAll('.ok-mode button')[0].click(); await step(80);
+    drainErrors('OKLCH без ошибок');
+  }
+
+  console.log('\n[G] Числовое поле и сид');
+  {
+    const num = cards()[0].querySelector('.num');
+    setText(num, '999999'); await step(100);
+    ok('значение выше максимума обрезано', parseFloat(num.value) <= 1024, num.value);
+    setText(num, '12,5'); await step(100);
+    ok('запятая как разделитель принята', Math.abs(parseFloat(num.value) - 12.5) < 0.01, num.value);
+    const seedRow = Array.from(cards()[0].querySelectorAll('.row')).find(r => r.querySelector('label') && r.querySelector('label').textContent === 'Сид');
+    const seed = seedRow && seedRow.querySelector('input');
+    ok('поле сида найдено', !!seed);
+    if (seed) {
+      const was = api().doc.channels[0].noise.seed;
+      seed.value = '99999999999'; ev(seed, 'input'); ev(seed, 'change'); await step(80);
+      ok('сид за пределами int32 не завёрнут молча', api().doc.channels[0].noise.seed === was &&
+         $('toast').classList.contains('err'), $('toast').textContent.slice(0, 70));
+      ev(seed, 'blur');
+      ok('поле сида восстановлено', seed.value === String(was), seed.value);
+    }
+    drainErrors('числовые поля без ошибок', /Сид — целое/);
   }
 
   console.log('\n[H] Видимость, порядок, дублирование, удаление');
   {
-    let cards = $('colLeft').querySelectorAll('.card');
-    const eye = cards[0].querySelector('.ibtn');
-    eye.click(); await step(120);
-    ok('канал выключен', $('colLeft').querySelectorAll('.card')[0].classList.contains('off'));
-    ok('счётчик активных обновился', $('stCh').textContent === '6 / 7', $('stCh').textContent);
-    eye.click(); await step(120);
-    ok('канал включён обратно', $('stCh').textContent === '7 / 7', $('stCh').textContent);
-
-    const nameBefore = cards[0].querySelector('.card-name').value;
-    cards[0].querySelectorAll('.ibtn')[2].click(); await step(120);   // ↓ вниз
-    ok('канал переехал вниз',
-       $('colLeft').querySelectorAll('.card')[1].querySelector('.card-name').value === nameBefore,
-       $('colLeft').querySelectorAll('.card')[1].querySelector('.card-name').value);
-
-    $('colLeft').querySelectorAll('.card')[1].querySelectorAll('.ibtn')[3].click(); await step(150); // дублировать
-    ok('канал продублирован', $('colLeft').querySelectorAll('.card').length === 8,
-       $('colLeft').querySelectorAll('.card').length + ' шт');
-    ok('копия помечена в имени',
-       /копия/.test($('colLeft').querySelectorAll('.card')[2].querySelector('.card-name').value));
-
-    $('colLeft').querySelectorAll('.card')[2].querySelectorAll('.ibtn')[4].click(); await step(150); // удалить
-    ok('канал удалён', $('colLeft').querySelectorAll('.card').length === 7);
+    const eye = cards()[0].querySelector('.ibtn');
+    eye.click(); await step(100);
+    ok('канал выключен', cards()[0].classList.contains('off') && $('stCh').textContent === '6 / 7', $('stCh').textContent);
+    eye.click(); await step(100);
+    ok('канал включён обратно', $('stCh').textContent === '7 / 7');
+    const nameBefore = cards()[0].querySelector('.card-name').value;
+    cards()[0].querySelectorAll('.ibtn')[2].click(); await step(100);
+    ok('канал переехал вниз', cards()[1].querySelector('.card-name').value === nameBefore);
+    cards()[1].querySelectorAll('.ibtn')[3].click(); await step(120);
+    ok('канал продублирован', cards().length === 8 && /копия/.test(cards()[2].querySelector('.card-name').value));
+    cards()[2].querySelectorAll('.ibtn')[4].click(); await step(120);
+    ok('канал удалён', cards().length === 7);
     drainErrors('операции с каналами без ошибок');
   }
 
-  console.log('\n[I] Раздел «Вывод»');
+  console.log('\n[I] Отмена и повтор');
+  {
+    await wait(400);                         // правки выше слились в шаг истории
+    ok('кнопка отмены активна', !$('btnUndo').disabled);
+    ok('документ помечен изменённым', $('nameWrap').classList.contains('dirty'));
+    const n = cards().length;
+    Array.from($('colLeft').querySelectorAll('.chip')).find(c => c.textContent === '+ Зерно — плёнка').click();
+    await step(80);
+    ok('канал добавлен', cards().length === n + 1);
+    key('KeyZ', 'z'); await step(120);
+    ok('Ctrl+Z убрал канал', cards().length === n, cards().length);
+    ok('повтор доступен', !$('btnRedo').disabled);
+    key('KeyY', 'y'); await step(120);
+    ok('Ctrl+Y вернул канал', cards().length === n + 1, cards().length);
+    key('KeyZ', 'z', { shiftKey: true }); await step(80);
+    ok('Ctrl+Shift+Z без истории повтора ничего не ломает', cards().length === n + 1);
+    $('btnUndo').click(); await step(120);
+    ok('кнопка ↶ тоже отменяет', cards().length === n);
+    const name = cards()[0].querySelector('.card-name');
+    name.focus();
+    key('KeyZ', 'z');
+    ok('Ctrl+Z в текстовом поле остаётся полю', cards().length === n);
+    name.blur();
+    drainErrors('история без ошибок');
+  }
+
+  console.log('\n[J] Раздел «Вывод»');
   {
     const outSec = $('colLeft').querySelectorAll('.sec')[3];
     outSec.querySelector('.sec-h').click();
     const sels = outSec.querySelectorAll('select');
-    ok('в разделе два селекта', sels.length === 2, sels.length + ' шт');
+    ok('в разделе два списка', sels.length === 2, sels.length + ' шт');
     setSelect(sels[0], 'srgb-linear'); await step(150);
-    ok('пространство смешивания переключено', true);
     for (const m of ['ordered', 'off', 'tpdf']) {
-      const sel = $('colLeft').querySelectorAll('.sec')[3].querySelectorAll('select')[1];
-      setSelect(sel, m); await step(150);
+      setSelect($('colLeft').querySelectorAll('.sec')[3].querySelectorAll('select')[1], m); await step(120);
     }
     drainErrors('режимы дизеринга без ошибок');
     ok('статус снова «готов»', $('stState').textContent === 'готов', $('stState').textContent);
   }
 
-  console.log('\n[J] Сцена: масштаб, границы, сдвиг, панель библиотеки');
+  console.log('\n[K] Сцена: масштаб, клавиши, границы, сдвиг');
   {
     setRange($('zoom'), 2); await step(60);
     ok('масштаб 400%', $('zval').textContent === '400%', $('zval').textContent);
     ok('размер фона превью пересчитан', $('field').style.backgroundSize === '1024px 1024px', $('field').style.backgroundSize);
-    $('zreset').click(); await step(60);
-    ok('сброс на 100%', $('zval').textContent === '100%', $('zval').textContent);
+    key('Digit0', '0'); await step(40);
+    ok('Ctrl+0 — 100%', $('zval').textContent === '100%', $('zval').textContent);
+    $('stageView').dispatchEvent(new win.WheelEvent('wheel', { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true }));
+    await step(40);
+    ok('Ctrl+колесо увеличивает', $('zval').textContent !== '100%', $('zval').textContent);
+    $('zreset').click(); await step(40);
     $('tGrid').click(); await step(30);
     ok('сетка границ включена', $('fieldGrid').classList.contains('on'));
-    ok('сетка нарисована по размеру плитки', /256px/.test($('fieldGrid').style.backgroundImage));
     $('tShift').click(); await step(30);
     ok('сдвиг на половину плитки', $('field').style.backgroundPosition === '128px 128px', $('field').style.backgroundPosition);
     $('surr').querySelectorAll('.sw-btn')[4].click();
@@ -247,90 +341,138 @@ function setText(el, v) { el.value = v; ev(el, 'change'); }
     drainErrors('управление сценой без ошибок');
   }
 
-  console.log('\n[K] Импорт JSON и библиотека');
+  console.log('\n[L] Библиотека: выбор папки, ошибки, открытие, удаление');
   {
-    const files = fs.readdirSync(ROOT + '/noises').filter(f => f !== 'index.json');
-    const fake = files.map(n => {
-      const body = fs.readFileSync(ROOT + '/noises/' + n, 'utf8');
-      return { name: n, text: async () => body };
-    });
-    await win.__api.importFiles(fake);
-    await step(400);
-    drainErrors('импорт ' + files.length + ' пресетов без ошибок');
-    ok('в библиотеке появились все пресеты', $('libGrid').querySelectorAll('.pre').length === files.length,
-       $('libGrid').querySelectorAll('.pre').length + ' из ' + files.length);
-    ok('счётчик библиотеки', $('libCount').textContent === String(files.length), $('libCount').textContent);
-    ok('загружен первый пресет', $('docName').value.length > 0, $('docName').value);
-    ok('статус библиотеки зелёный', $('libStatus').classList.contains('ok'), $('libStatus').textContent.slice(0, 60));
+    libState = { dir: LIB_DIR, files: PRESETS.concat([
+      { name: 'bad.json', text: '{"format":"zerno-noise-tile","version":1}' },
+      { name: 'x.json', text: 'не json' },
+      { name: 'other.json', text: '{"a":1}' }]), errors: ['secret.json: отказано в доступе'] };
+    answers.library_choose = libState;
+    $('libDir').click(); await step(500);
+    ok('в библиотеке все пресеты', $('libGrid').querySelectorAll('.pre').length === PRESETS.length,
+       $('libGrid').querySelectorAll('.pre').length + ' из ' + PRESETS.length);
+    ok('счётчик библиотеки', $('libCount').textContent === String(PRESETS.length), $('libCount').textContent);
+    const st = $('libStatus').textContent;
+    ok('статус: папка и число пресетов', st.indexOf(LIB_DIR) === 0 && st.indexOf('пресетов: ' + PRESETS.length) > 0, st.split('\n')[1]);
+    ok('статус: чужие файлы названы', /не ЗЕРНО: 1 \(other\.json\)/.test(st));
+    ok('статус: ошибки чтения и разбора перечислены', /Ошибки \(3\)/.test(st) && /bad\.json/.test(st) &&
+       /не разбирается как JSON/.test(st) && /отказано в доступе/.test(st) && $('libStatus').classList.contains('err'));
 
-    // клик по превью загружает пресет
     const pre = $('libGrid').querySelectorAll('.pre')[4];
-    const label = pre.querySelector('.pre-n').textContent.split('  ·  ')[0];
+    const label = pre.querySelector('.pre-n').textContent;
     pre.click(); await step(300);
-    ok('клик по пресету загрузил его', $('docName').value === label, $('docName').value + ' ≠ ' + label);
-    drainErrors('загрузка пресета из библиотеки без ошибок', /документ\.|не разбирается/);
+    ok('клик по пресету открыл его', $('docName').value === label, $('docName').value + ' ≠ ' + label);
+    ok('документ связан с файлом пресета', $('fileName').textContent === PRESETS[4].name, $('fileName').textContent);
+    ok('открытый пресет подсвечен', pre.classList.contains('cur'));
+    ok('открытый пресет не изменён', !$('nameWrap').classList.contains('dirty'));
+    key('KeyZ', 'z'); await step(200);
+    ok('Ctrl+Z вернул прежний документ', $('docName').value !== label && $('fileName').textContent === 'не сохранён в файл');
+    key('KeyY', 'y'); await step(200);
+    ok('Ctrl+Y снова открыл пресет', $('docName').value === label);
 
-    // битый JSON должен дать понятную ошибку, а не молчание
-    await win.__api.importFiles([{ name: 'bad.json', text: async () => '{"format":"zerno-noise-tile","version":1}' }]);
-    await step(200);
-    errors.length = 0;
-    ok('битый пресет даёт тост с адресом поля и именем файла',
-       /документ\.\w+: поле отсутствует/.test($('toast').textContent) &&
-       /bad\.json/.test($('toast').textContent) && $('toast').classList.contains('err'),
-       $('toast').textContent.slice(0, 90));
-    errors.length = 0;
-    await win.__api.importFiles([{ name: 'x.json', text: async () => 'не json' }]);
-    await step(200);
-    ok('не-JSON даёт понятный тост', /не разбирается как JSON/.test($('toast').textContent),
-       $('toast').textContent.slice(0, 70));
-    errors.length = 0;
+    const renders = calls.filter(c => c.cmd === 'render').length;
+    $('libGrid').querySelectorAll('.pre')[2].click(); await step(200);
+    const thumbs = calls.filter(c => c.cmd === 'render').slice(renders).filter(c => c.args.request.jobs.length === PRESETS.length);
+    ok('клик по пресету не перерисовывает миниатюры библиотеки', thumbs.length === 0, thumbs.length);
+
+    answers.library_delete = null;
+    answers.library_state = { dir: LIB_DIR, files: PRESETS.slice(1), errors: [] };
+    $('libGrid').querySelectorAll('.pre')[0].querySelector('.rm').click(); await step(300);
+    ok('удаление спрашивает и удаляет нужный файл', lastCall('library_delete').args.name === PRESETS[0].name);
+    ok('после удаления библиотека перечитана', $('libGrid').querySelectorAll('.pre').length === PRESETS.length - 1);
+    libState = { dir: LIB_DIR, files: PRESETS, errors: [] };
+    $('libReload').click(); await step(300);
+    ok('«↻» перечитывает папку', $('libGrid').querySelectorAll('.pre').length === PRESETS.length);
+    drainErrors('библиотека без ошибок');
   }
 
-  console.log('\n[L] Экспорт');
+  console.log('\n[M] Файлы: сохранить, сохранить как, открыть, бросить на окно');
   {
-    let dl = null;
-    const origCreate = D.createElement.bind(D);
-    D.createElement = function (tag) {
-      const el = origCreate(tag);
-      if (tag === 'a') { el.click = function () { dl = el.download; }; }
-      return el;
-    };
-    $('btnPng').click(); await step(250);
-    ok('PNG выгружен с именем', /\.png$/.test(dl || ''), dl);
-    dl = null;
+    // документ связан с пресетом из библиотеки — Ctrl+S пишет прямо в него
+    setRange(cards()[0].querySelectorAll('input[type=range]')[0], 50); await step(150);
+    ok('после правки документ изменён', $('nameWrap').classList.contains('dirty'));
+    key('KeyS', 's'); await step(200);
+    const sv = lastCall('doc_save');
+    ok('Ctrl+S пишет в связанный файл', sv && sv.args.path === LIB_DIR + '\\' + PRESETS[2].name, sv && sv.args.path);
+    ok('записан строгий JSON документа', sv && JSON.parse(sv.args.text).format === 'zerno-noise-tile' && /\n$/.test(sv.args.text));
+    ok('после записи документ не изменён', !$('nameWrap').classList.contains('dirty'));
+
+    $('docName').value = 'новый: имя/тест*'; ev($('docName'), 'input');
+    answers.doc_save_as = 'D:\\out\\new.json';
+    key('KeyS', 's', { shiftKey: true }); await step(200);
+    const sa = lastCall('doc_save_as');
+    ok('«Сохранить как» предлагает имя без запрещённых символов', sa && sa.args.suggested === 'новый_ имя_тест_', sa && sa.args.suggested);
+    ok('документ привязан к новому файлу', $('fileName').textContent === 'new.json', $('fileName').textContent);
+
+    $('docName').value = ''; ev($('docName'), 'input');
+    answers.doc_save_as = null;
+    $('btnSaveAs').click(); await step(150);
+    ok('пустое имя не подменяется заглушкой', lastCall('doc_save_as').args.suggested === '', lastCall('doc_save_as').args.suggested);
+    ok('отмена диалога ничего не меняет', $('fileName').textContent === 'new.json');
+
+    answers.doc_open = { path: 'D:\\x\\b.json', name: 'b.json', text: PRESETS[1].text };
+    key('KeyO', 'o'); await step(300);
+    ok('Ctrl+O открыл файл', $('fileName').textContent === 'b.json', $('fileName').textContent);
+    answers.doc_open = { path: 'D:\\x\\c.json', name: 'c.json', text: '{"format":"zerno-noise-tile","version":1}' };
+    $('btnOpen').click(); await step(200);
+    ok('битый файл даёт тост с адресом поля', $('toast').classList.contains('err') && /документ\.\w+: поле отсутствует/.test($('toast').textContent),
+       $('toast').textContent.slice(0, 80));
+    ok('после ошибки открыт прежний документ', $('fileName').textContent === 'b.json');
+
+    answers.doc_read = { path: 'D:\\x\\d.json', name: 'd.json', text: PRESETS[3].text };
+    dropHandler({ payload: { type: 'over', position: { x: 1, y: 1 } } });
+    ok('при перетаскивании сцена подсвечена', $('stage').classList.contains('drop'));
+    dropHandler({ payload: { type: 'drop', paths: ['D:\\x\\d.json', 'D:\\x\\pic.png'], position: { x: 1, y: 1 } } });
+    await step(300);
+    ok('подсветка снята', !$('stage').classList.contains('drop'));
+    ok('брошенный файл открыт', $('fileName').textContent === 'd.json' && lastCall('doc_read').args.path === 'D:\\x\\d.json');
+    drainErrors('файлы без ошибок', /c\.json\]|pic\.png/);
+  }
+
+  console.log('\n[N] Экспорт');
+  {
+    answers.export_png = { path: 'D:\\out\\t.png', bytes: 2048 };
+    key('KeyE', 'e'); await step(200);
+    const ep = lastCall('export_png');
+    ok('Ctrl+E — PNG считает Rust по документу', ep && ep.args.request.jobs[0].doc.format === 'zerno-noise-tile' &&
+       ep.args.request.jobs[0].width === api().doc.tile.width);
+    ok('о записи PNG сказано', /PNG сохранён/.test($('toast').textContent), $('toast').textContent);
+    answers.export_bytes = { path: 'D:\\out\\t.webp', bytes: 1024 };
     $('btnWebp').click(); await step(250);
-    ok('WebP выгружен с именем', /\.webp$/.test(dl || ''), dl);
-    dl = null;
-    $('btnJson').click(); await step(250);
-    ok('JSON выгружен с именем', /\.json$/.test(dl || ''), dl);
-    D.createElement = origCreate;
+    const ew = lastCall('export_bytes');
+    ok('WEBP уходит сырыми байтами с расширением', ew && ew.args instanceof win.Uint8Array && ew.opts.headers['x-ext'] === 'webp');
+    $('btnCss').click(); await step(250);
+    ok('CSS в буфере обмена', clip && /background-image:url\("data:image\/png/.test(clip) && /background-size:/.test(clip));
     drainErrors('экспорт без ошибок');
   }
 
-  console.log('\n[M] Библиотека без подключённой папки');
+  console.log('\n[O] Ошибка движка видна, а не проглочена');
   {
-    $('libSave').click(); await step(150);
-    ok('сохранение без папки объясняет причину',
-       /папк/i.test($('libStatus').textContent) && $('libStatus').classList.contains('err'),
-       $('libStatus').textContent.slice(0, 70));
-    $('libDir').click(); await step(150);
-    ok('кнопка «Папка» сообщает об отсутствии API',
-       /File System Access/.test($('libStatus').textContent), $('libStatus').textContent.slice(0, 70));
+    answers.render = new Error('нехватка памяти: тест');
+    setRange(cards()[0].querySelectorAll('input[type=range]')[0], 60); await step(250);
+    ok('статус «ошибка»', $('stState').textContent === 'ошибка', $('stState').textContent);
+    ok('текст ошибки в тосте', /нехватка памяти: тест/.test($('toast').textContent), $('toast').textContent.slice(0, 60));
+    setRange(cards()[0].querySelectorAll('input[type=range]')[0], 61); await step(250);
+    ok('следующая правка снова рисует', $('stState').textContent === 'готов', $('stState').textContent);
     errors.length = 0;
   }
 
-  console.log('\n[N] Крайний случай: плитка 8×8 и обратно');
+  console.log('\n[P] Крайний случай: плитка 8×8');
   {
-    const secBody = $('colLeft').querySelectorAll('.sec')[0].querySelector('.sec-b');
-    const wnum = secBody.querySelectorAll('.num')[0];
-    setText(wnum, '8'); await step(250);
-    const hnum = $('colLeft').querySelectorAll('.sec')[0].querySelector('.sec-b').querySelectorAll('.num')[1];
-    setText(hnum, '8'); await step(250);
+    const nums = $('colLeft').querySelectorAll('.sec')[0].querySelectorAll('.num');
+    setText(nums[0], '8'); await step(200);
+    setText(nums[1], '8'); await step(200);
     ok('плитка 8×8 отрисована', $('stTile').textContent === '8×8 px', $('stTile').textContent);
-    ok('статус без ошибки', $('stState').textContent === 'готов', $('stState').textContent);
     drainErrors('крошечная плитка без ошибок');
+  }
+
+  console.log('\n[Q] Сессия переживает перезапуск');
+  {
+    win.dispatchEvent(new win.Event('beforeunload'));
+    const s = JSON.parse(win.localStorage.getItem('zerno.session'));
+    ok('сессия записана', s && typeof s.doc === 'string' && s.file === 'D:\\x\\d.json', s && s.file);
   }
 
   console.log('\n' + (fails ? '✗ ПРОВАЛОВ: ' + fails + ' из ' + checks : '✓ все ' + checks + ' проверок интерфейса пройдены'));
   process.exit(fails ? 1 : 0);
-})();
+})().catch(e => { console.log('ОШИБКА: ' + e.stack); process.exit(1); });

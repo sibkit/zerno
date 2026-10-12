@@ -1,16 +1,17 @@
 "use strict";
-/* ЗЕРНО · библиотека пресетов: сервер, File System Access, обзор папки, index.json.
-   Зависит от doc.js, engine.js, render.js. */
+/* ЗЕРНО · библиотека пресетов: папка на диске, которую читает приложение.
+   Зависит от doc.js, engine.js, render.js, history.js.
+   Папку выбирает пользователь; пока не выбрал — так и написано. */
 
+const lib={dir:null,items:[]};   /* items: {name, path, doc} */
 
-const lib={source:'none',dir:null,dirName:'',items:[],currentName:null};
-
-function libStatus(txt,cls){
+function libStatus(txt,isErr){
   const e=$('libStatus');
   e.textContent=txt;
-  e.className='lib-status'+(cls?' '+cls:'');
+  e.className='lib-status'+(isErr?' err':'');
 }
 
+/** Разбор файлов тем же строгим валидатором, что и при открытии. */
 function parsePresetFiles(files){
   const items=[],errors=[],skipped=[];
   for(const f of files){
@@ -24,50 +25,73 @@ function parsePresetFiles(files){
   return {items,errors,skipped};
 }
 
-function applyScan(res,srcLabel){
-  lib.items=res.items;
-  renderLib();
-  let msg=srcLabel+': пресетов '+res.items.length;
-  if(res.skipped.length) msg+=', пропущено не-ЗЕРНО '+res.skipped.length;
-  if(res.errors.length){
-    msg+='\nОшибки ('+res.errors.length+'):\n· '+res.errors.join('\n· ');
-    libStatus(msg,'err');
-  }else{
-    libStatus(msg,'ok');
+function samePath(a,b){
+  return !!a&&!!b&&a.replace(/\//g,'\\').toLowerCase()===b.replace(/\//g,'\\').toLowerCase();
+}
+
+function applyLibrary(st){
+  lib.dir=st.dir;
+  $('libReveal').disabled=!st.dir;
+  $('libReload').disabled=!st.dir;
+  if(!st.dir){
+    lib.items=[];
+    renderLib();
+    libStatus('Папка библиотеки не выбрана. Нажмите «Папка…» — подойдёт любая, '+
+              'например noises/ из папки проекта.');
+    return;
   }
+  const res=parsePresetFiles(st.files);
+  const sep=/\\/.test(st.dir)?'\\':'/';
+  lib.items=res.items.map(it=>({name:it.name,doc:it.doc,path:st.dir.replace(/[\\/]$/,'')+sep+it.name}));
+  renderLib();
+  const errors=st.errors.concat(res.errors);
+  let msg=st.dir+'\nпресетов: '+lib.items.length;
+  if(res.skipped.length) msg+=', не ЗЕРНО: '+res.skipped.length+' ('+res.skipped.join(', ')+')';
+  if(errors.length) msg+='\nОшибки ('+errors.length+'):\n· '+errors.join('\n· ');
+  libStatus(msg,errors.length>0);
+}
+
+async function reloadLibrary(){
+  applyLibrary(await call('library_state'));
+}
+
+/** Подсветка пресета, с которым связан документ. Миниатюры не перерисовываются. */
+function markCurrentPreset(){
+  const f=boundFile();
+  const cards=$('libGrid').children;
+  for(let i=0;i<cards.length;i++)
+    cards[i].classList.toggle('cur',samePath(lib.items[i]&&lib.items[i].path,f));
 }
 
 async function renderLib(){
   const g=$('libGrid');
   g.innerHTML='';
   $('libCount').textContent=lib.items.length;
-  const canvases=[], jobs=[], sizes=[];
+  const canvases=[], jobs=[];
   for(const it of lib.items){
     const card=el('div','pre');
-    if(it.name===lib.currentName) card.classList.add('cur');
     const cv=document.createElement('canvas');
-    cv.width=244; cv.height=148;   /* ровно 2× к CSS-размеру: без искажения пропорций */
+    cv.width=248; cv.height=152;   /* ровно 2× к CSS-размеру: без искажения пропорций */
     card.appendChild(cv);
-    card.appendChild(el('div','pre-n',it.doc.name+'  ·  '+it.name));
+    const nm=el('div','pre-n',it.doc.name);
+    nm.title=it.doc.name+'\n'+it.path;
+    card.appendChild(nm);
     const rm=el('div','rm','✕');
-    rm.title=lib.source==='fs'?'Удалить файл из папки':'Убрать из списка';
-    rm.addEventListener('click',async e=>{
-      e.stopPropagation();
-      await removePreset(it);
-    });
+    rm.title='Удалить файл из папки';
+    rm.addEventListener('click',e=>{ e.stopPropagation(); guard(()=>removePreset(it)); });
     card.appendChild(rm);
     card.addEventListener('click',()=>{
       try{
-        loadDoc(cloneDoc(it.doc),it.name);
-        toast('Загружено: '+it.name);
-      }catch(err){ toast('Не удалось загрузить '+it.name+': '+err.message,true); }
+        openDocument(cloneDoc(it.doc),it.path,true);
+        toast('Открыт: '+it.name+'  ·  Ctrl+Z вернёт прежний документ');
+      }catch(err){ toast('Не удалось открыть '+it.name+': '+err.message,true); }
     });
     g.appendChild(card);
-    const [tw,th]=thumbDims(it.doc.tile.width,it.doc.tile.height,72);
+    const [tw,th]=thumbDims(it.doc.tile.width,it.doc.tile.height,76);
     canvases.push(cv);
-    sizes.push([tw,th]);
     jobs.push({doc:scaledDoc(it.doc,tw,th),width:tw,height:th});
   }
+  markCurrentPreset();
   if(!jobs.length) return;
   let res;
   try{
@@ -76,225 +100,29 @@ async function renderLib(){
     for(const cv of canvases){
       const ctx=cv.getContext('2d');
       ctx.fillStyle='#2a1010'; ctx.fillRect(0,0,cv.width,cv.height);
-      ctx.fillStyle='#ff5f52'; ctx.font='18px monospace';
+      ctx.fillStyle='#ff6b5e'; ctx.font='18px monospace';
       ctx.fillText('ошибка',14,58);
     }
     toast('Миниатюры библиотеки: '+err.message,true);
     return;
   }
-  for(let i=0;i<canvases.length;i++) if(res[i]) tileInto(canvases[i],res[i]);
+  for(let i=0;i<canvases.length;i++) tileInto(canvases[i],res[i]);
 }
 
 async function removePreset(it){
-  if(lib.source==='server'){
-    if(!confirm('Удалить файл «'+it.name+'» из папки noises/?\nДействие необратимо.')) return;
-    try{ await deleteFromServer(it.name); }
-    catch(e){ toast('Не удалось удалить: '+e.message,true); }
-    return;
-  }
-  if(lib.source==='fs'&&lib.dir){
-    if(!confirm('Удалить файл «'+it.name+'» из папки «'+lib.dirName+'»?\nДействие необратимо.')) return;
-    try{
-      await lib.dir.removeEntry(it.name);
-      toast('Файл удалён: '+it.name);
-      await scanDirHandle();
-    }catch(e){ toast('Не удалось удалить: '+e.message,true); }
-  }else{
-    lib.items=lib.items.filter(x=>x!==it);
-    renderLib();
-  }
-}
-
-async function openDirPicker(){
-  if(!window.showDirectoryPicker)
-    throw new Error('File System Access API недоступен в этом браузере. Нажмите «Обзор…» — это работает везде, но без записи в папку.');
-  const h=await window.showDirectoryPicker({mode:'readwrite',id:'zerno-noises'});
-  lib.dir=h; lib.source='fs'; lib.dirName=h.name;
-  try{ await idbSet('dir',h); }catch(_){}
-  await scanDirHandle();
-}
-
-async function scanDirHandle(){
-  if(!lib.dir) throw new Error('Папка не подключена.');
-  const files=[];
-  for await(const [name,handle] of lib.dir.entries()){
-    if(handle.kind!=='file') continue;
-    if(!/\.json$/i.test(name)) continue;
-    const f=await handle.getFile();
-    files.push({name,text:await f.text()});
-  }
-  files.sort((a,b)=>a.name.localeCompare(b.name,'ru'));
-  applyScan(parsePresetFiles(files),'Папка «'+lib.dirName+'»');
-}
-
-async function pickDirInput(files){
-  const out=[];
-  for(const f of files){
-    if(!/\.json$/i.test(f.name)) continue;
-    out.push({name:f.name,text:await f.text()});
-  }
-  out.sort((a,b)=>a.name.localeCompare(b.name,'ru'));
-  lib.source='input'; lib.dir=null;
-  if(!out.length){
-    lib.items=[]; renderLib();
-    libStatus('В выбранной папке нет файлов *.json.','err');
-    return;
-  }
-  applyScan(parsePresetFiles(out),'Выбранная папка');
-}
-
-/** Библиотека через zerno.exe: сервер сам читает папку noises/ и пишет в неё. */
-async function loadLibraryFromServer(){
-  const r=await fetch('api/library',{cache:'no-store'});
-  if(!r.ok) throw new Error('HTTP '+r.status);
-  const j=await r.json();
-  if(j.error) throw new Error(j.error);
-  lib.source='server';
-  lib.dir=null;
-  lib.dirName='noises/';
-  const res={items:[],errors:j.errors||[],skipped:new Array(j.skipped||0)};
-  for(const f of j.files){
-    try{ res.items.push({name:f.name,doc:validateDoc(f.doc,f.name)}); }
-    catch(e){ res.errors.push(e.message); }
-  }
-  applyScan(res,'Папка noises/ (сервер)');
-}
-
-async function saveToServer(){
-  const fn=safeName(doc.name).replace(/[^0-9A-Za-z._-]/g,'_')+'.json';
-  const r=await fetch('api/library?name='+encodeURIComponent(fn),{
-    method:'PUT',
-    headers:{'content-type':'application/json'},
-    body:JSON.stringify(serializeDoc(doc),null,2)
-  });
-  const j=await r.json().catch(()=>({}));
-  if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
-  lib.currentName=fn;
-  toast('Сохранено в noises/'+fn);
-  await loadLibraryFromServer();
-}
-
-async function deleteFromServer(name){
-  const r=await fetch('api/library?name='+encodeURIComponent(name),{method:'DELETE'});
-  const j=await r.json().catch(()=>({}));
-  if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
-  toast('Файл удалён: '+name);
-  await loadLibraryFromServer();
-}
-
-async function tryHttpIndex(){
-  if(!/^https?:$/.test(location.protocol)) return false;
-  const base='./noises/';
-  let list;
-  try{
-    const r=await fetch(base+'index.json',{cache:'no-cache'});
-    if(!r.ok) return false;
-    const j=await r.json();
-    if(Array.isArray(j)) list=j;
-    else if(j&&Array.isArray(j.files)) list=j.files;
-    else throw new Error('noises/index.json: ожидается массив имён или {"files":[...]}.');
-  }catch(e){
-    if(e instanceof SyntaxError||/index\.json/.test(e.message)){ libStatus(e.message,'err'); return true; }
-    return false;
-  }
-  const files=[];
-  const errors=[];
-  for(const nm of list){
-    if(typeof nm!=='string'){ errors.push('index.json: элемент списка не строка — '+JSON.stringify(nm)); continue; }
-    try{
-      const r=await fetch(base+nm,{cache:'no-cache'});
-      if(!r.ok) throw new Error('HTTP '+r.status);
-      files.push({name:nm,text:await r.text()});
-    }catch(e){ errors.push(nm+': '+e.message); }
-  }
-  lib.source='http'; lib.dir=null;
-  const res=parsePresetFiles(files);
-  res.errors=errors.concat(res.errors);
-  applyScan(res,'./noises/ (index.json)');
-  return true;
-}
-
-async function saveToFolder(){
-  if(lib.source==='server') return saveToServer();
-  if(lib.source!=='fs'||!lib.dir)
-    throw new Error('Нет подключённой папки с правом записи. Нажмите «Папка» (Chrome/Edge).');
-  const fn=safeName(doc.name)+'.json';
-  const perm=await lib.dir.queryPermission({mode:'readwrite'});
-  if(perm!=='granted'){
-    const req=await lib.dir.requestPermission({mode:'readwrite'});
-    if(req!=='granted') throw new Error('Нет разрешения на запись в папку.');
-  }
-  const h=await lib.dir.getFileHandle(fn,{create:true});
-  const w=await h.createWritable();
-  await w.write(JSON.stringify(serializeDoc(doc),null,2));
-  await w.close();
-  lib.currentName=fn;
-  toast('Сохранено в папку: '+fn);
-  await scanDirHandle();
-}
-
-/* ---- IndexedDB: запоминаем выбранную папку между сессиями ---- */
-function idbOpen(){
-  return new Promise((res,rej)=>{
-    const r=indexedDB.open('zerno',1);
-    r.onupgradeneeded=()=>r.result.createObjectStore('kv');
-    r.onsuccess=()=>res(r.result);
-    r.onerror=()=>rej(r.error);
-  });
-}
-async function idbSet(k,v){
-  const db=await idbOpen();
-  return new Promise((res,rej)=>{
-    const t=db.transaction('kv','readwrite');
-    t.objectStore('kv').put(v,k);
-    t.oncomplete=()=>res(); t.onerror=()=>rej(t.error);
-  });
-}
-async function idbGet(k){
-  const db=await idbOpen();
-  return new Promise((res,rej)=>{
-    const t=db.transaction('kv','readonly');
-    const q=t.objectStore('kv').get(k);
-    q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error);
-  });
-}
-
-async function restoreDir(){
-  let h=null;
-  try{ h=await idbGet('dir'); }catch(_){ return false; }
-  if(!h||!h.queryPermission) return false;
-  const p=await h.queryPermission({mode:'readwrite'});
-  if(p!=='granted'){
-    libStatus('Папка «'+h.name+'» была подключена ранее. Нажмите «Папка», чтобы восстановить доступ.');
-    return true;
-  }
-  lib.dir=h; lib.source='fs'; lib.dirName=h.name;
-  await scanDirHandle();
-  return true;
+  const ok=await tauri().dialog.ask('Удалить файл «'+it.name+'» из папки библиотеки?\nДействие необратимо.',
+    {title:'ЗЕРНО — удаление пресета',kind:'warning',okLabel:'Удалить',cancelLabel:'Отмена'});
+  if(!ok) return;
+  await call('library_delete',{name:it.name});
+  toast('Файл удалён: '+it.name);
+  await reloadLibrary();
 }
 
 function initLib(){
-  $('libDir').addEventListener('click',async()=>{
-    try{ await openDirPicker(); }
-    catch(e){ if(e.name!=='AbortError') libStatus(e.message,'err'); }
-  });
-  $('libPick').addEventListener('click',()=>$('fileDir').click());
-  $('fileDir').addEventListener('change',async e=>{
-    try{ await pickDirInput(Array.from(e.target.files)); }
-    catch(err){ libStatus(err.message,'err'); }
-    e.target.value='';
-  });
-  $('libSave').addEventListener('click',async()=>{
-    try{ await saveToFolder(); }
-    catch(e){ toast(e.message,true); libStatus(e.message,'err'); }
-  });
-  $('libReload').addEventListener('click',async()=>{
-    try{
-      if(lib.source==='server') await loadLibraryFromServer();
-      else if(lib.source==='fs') await scanDirHandle();
-      else if(lib.source==='http') await tryHttpIndex();
-      else libStatus('Нечего обновлять: источник не подключён.','err');
-    }catch(e){ libStatus(e.message,'err'); }
-  });
+  $('libDir').addEventListener('click',()=>guard(async()=>{
+    const st=await call('library_choose');
+    if(st) applyLibrary(st);
+  }));
+  $('libReveal').addEventListener('click',()=>guard(()=>call('library_reveal')));
+  $('libReload').addEventListener('click',()=>guard(reloadLibrary));
 }
-

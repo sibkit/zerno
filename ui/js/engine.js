@@ -1,40 +1,24 @@
 "use strict";
-/* ЗЕРНО · движок: нативный сервер zerno.exe либо расчёт в браузере.
-   Ничего не подменяет молча — выбранный путь виден в строке состояния. */
+/* ЗЕРНО · связь с движком на Rust (команды Tauri).
+   Других путей нет: без window.__TAURI__ интерфейс не запускается и говорит
+   об этом прямо (см. boot.js), а не считает молча чем-то другим. */
 
-/*
-   Считать может либо zerno.exe (нативно, в несколько потоков, с кэшем полей),
-   либо этот же алгоритм на JS прямо в браузере. Второй путь нужен, когда
-   страницу открыли файлом (file://) без сервера. Какой движок работает
-   сейчас — написано в строке состояния, молча ничего не подменяется.
-*/
-const engineInfo={mode:'js',threads:0,version:'',reason:'страница открыта без сервера'};
-
-async function detectEngine(){
-  if(!/^https?:$/.test(location.protocol)){
-    engineInfo.mode='js';
-    engineInfo.reason='протокол '+location.protocol+' — сервер недоступен';
-    return;
-  }
-  try{
-    const r=await fetch('api/health',{cache:'no-store'});
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const j=await r.json();
-    if(j.engine!=='zig') throw new Error('неизвестный движок «'+j.engine+'»');
-    engineInfo.mode='zig';
-    engineInfo.threads=j.threads;
-    engineInfo.version=j.version;
-    engineInfo.zig=j.zig;
-    engineInfo.reason='';
-  }catch(e){
-    engineInfo.mode='js';
-    engineInfo.reason=e.message;
-  }
+function tauri(){
+  if(!window.__TAURI__||!window.__TAURI__.core)
+    throw new Error('Нет связи с приложением (window.__TAURI__): интерфейс открыт не в ЗЕРНО.');
+  return window.__TAURI__;
 }
 
+/** Команда приложения. Ошибка Rust приходит строкой — превращаем в Error. */
+async function call(cmd,args,opts){
+  try{ return await tauri().core.invoke(cmd,args,opts); }
+  catch(e){ throw e instanceof Error?e:new Error(String(e)); }
+}
+
+/** Ответ рендера — ZRN1: "ZRN1" | u32 N | (u32 w, u32 h)×N | RGBA подряд. */
 function parseRenderResponse(buf){
   if(buf.length<8||buf[0]!==0x5a||buf[1]!==0x52||buf[2]!==0x4e||buf[3]!==0x31)
-    throw new Error('сервер вернул ответ неизвестного формата');
+    throw new Error('движок вернул ответ неизвестного формата');
   const dv=new DataView(buf.buffer,buf.byteOffset,buf.byteLength);
   const count=dv.getUint32(4,true);
   const sizes=[];
@@ -46,35 +30,21 @@ function parseRenderResponse(buf){
   const out=[];
   for(const [w,h] of sizes){
     const n=w*h*4;
-    if(off+n>buf.length) throw new Error('ответ сервера обрезан');
+    if(off+n>buf.length) throw new Error('ответ движка обрезан');
     out.push({w:w,h:h,data:new Uint8ClampedArray(buf.buffer,buf.byteOffset+off,n)});
     off+=n;
   }
+  if(off!==buf.length) throw new Error('в ответе движка лишние '+(buf.length-off)+' байт');
   return out;
 }
 
-/** Пачка задач рендера. Одна за раз — один запрос к серверу. */
+/** Пачка задач рендера [{doc,width,height}] — один вызов, считается параллельно. */
 async function renderTiles(jobs){
   if(!jobs.length) return [];
-  if(engineInfo.mode==='zig'){
-    const r=await fetch('api/render',{
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      body:JSON.stringify({jobs:jobs.map(j=>({width:j.width,height:j.height,doc:j.doc}))})
-    });
-    if(!r.ok){
-      let msg='HTTP '+r.status;
-      try{ msg=(await r.json()).error||msg; }catch(_){}
-      throw new Error(msg);
-    }
-    return parseRenderResponse(new Uint8Array(await r.arrayBuffer()));
-  }
-  return jobs.map(j=>{
-    const d=j.doc.format?j.doc:serializeDoc(j.doc);
-    const acc=composeDoc(d,j.width,j.height);
-    const img=accToImageData(acc,j.width,j.height,d.render.dither);
-    return {w:j.width,h:j.height,data:img.data};
-  });
+  const req={jobs:jobs.map(j=>({width:j.width,height:j.height,doc:j.doc.format?j.doc:serializeDoc(j.doc)}))};
+  const buf=await call('render',{request:req});
+  if(!(buf instanceof ArrayBuffer)) throw new Error('движок вернул не двоичный буфер');
+  return parseRenderResponse(new Uint8Array(buf));
 }
 
 function tileToCanvas(tile){
@@ -90,4 +60,3 @@ function tileInto(cv,tile){
   ctx.fillStyle=ctx.createPattern(src,'repeat');
   ctx.fillRect(0,0,cv.width,cv.height);
 }
-

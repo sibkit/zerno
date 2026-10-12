@@ -1,10 +1,10 @@
 /* Всплывающее сообщение внизу экрана. */
 .toast{
-  position:fixed;left:50%;bottom:44px;transform:translateX(-50%) translateY(10px);
-  background:var(--panel-3);border:1px solid var(--line-2);border-left:2px solid var(--acc);
-  color:var(--ink);font:400 11.5px/1.4 var(--mono);padding:10px 16px;border-radius:var(--r);
+  position:fixed;left:50%;bottom:46px;transform:translateX(-50%) translateY(10px);
+  background:var(--panel-3);border:1px solid var(--line-2);border-left:3px solid var(--acc);
+  color:var(--ink);font:400 var(--fs-s)/1.45 var(--sans);padding:10px 16px;border-radius:var(--r);
   box-shadow:0 12px 40px rgba(0,0,0,.65);opacity:0;pointer-events:none;
-  transition:opacity .2s,transform .2s;z-index:200;max-width:560px;white-space:pre-wrap;
+  transition:opacity .2s,transform .2s;z-index:200;max-width:620px;white-space:pre-wrap;
 }
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.err{border-left-color:var(--danger)}

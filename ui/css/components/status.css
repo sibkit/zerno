@@ -1,8 +1,8 @@
 /* Нижняя строка состояния: индикатор, счётчики, движок. */
 .status{
-  display:flex;align-items:center;gap:0;height:26px;padding:0 14px;
+  display:flex;align-items:center;height:28px;padding:0 14px;
   background:var(--panel);border-top:1px solid var(--line);
-  font:400 10px/1 var(--mono);color:var(--ink-3);letter-spacing:.05em;
+  font:400 var(--fs-xs)/1 var(--mono);color:var(--ink-3);
   position:relative;
 }
 .status::after{content:"";position:absolute;inset:0;
@@ -12,7 +12,7 @@
 .status .it:first-child{padding-left:0}
 .status .it:last-child{border-right:0;margin-left:auto;padding-right:0}
 .status b{color:var(--ink-2);font-weight:500}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--ok);flex:none;
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none;
   box-shadow:0 0 6px currentColor;color:var(--ok)}
 .dot.busy{background:var(--acc);color:var(--acc);animation:pulse .7s infinite alternate}
 .dot.err{background:var(--danger);color:var(--danger)}

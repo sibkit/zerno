@@ -1,39 +1,33 @@
 // Прогон всех наборов проверок. Запуск: node tests/run-all.js
 //
-// Наборы 3–5 требуют работающий сервер на 127.0.0.1:8787 (кроме test-ui.js,
-// который специально проверяет запасной путь на JS без сервера).
+// Нужно: jsdom (cd tests && npm install) и собранный движок
+// (cargo build --release -p zerno-engine) — без них прогон падает с объяснением,
+// а не пропускает наборы молча. Тесты на Rust: cargo test -p zerno-engine.
 const { execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
 const HERE = __dirname;
-const suites = [
-  ['ядро JS       ', 'test-engine.js', false],
-  ['пресеты       ', 'make-presets.js', false],
-  ['UI, путь JS   ', 'test-ui.js', true],
-  ['паритет Zig/JS', 'test-parity.js', false, true],
-  ['UI, путь Zig  ', 'test-ui-zig.js', true, true],
-];
+const ROOT = path.resolve(HERE, '..');
+const EXE = path.join(ROOT, 'target', 'release', 'zerno-render' + (process.platform === 'win32' ? '.exe' : ''));
 
-let serverUp = false;
-try {
-  execFileSync(process.execPath, ['-e', "fetch('http://127.0.0.1:8787/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"], { stdio: 'ignore' });
-  serverUp = true;
-} catch (_) {}
-
-if (!fs.existsSync(path.join(HERE, 'node_modules'))) {
-  console.log('Для наборов с интерфейсом нужен jsdom:  cd tests && npm install\n');
+const missing = [];
+if (!fs.existsSync(path.join(HERE, 'node_modules', 'jsdom'))) missing.push('jsdom:  cd tests && npm install');
+if (!fs.existsSync(EXE)) missing.push('движок: cargo build --release -p zerno-engine  (нет ' + EXE + ')');
+if (missing.length) {
+  console.log('Не хватает для прогона:\n  ' + missing.join('\n  '));
+  process.exit(1);
 }
 
-console.log('Сервер на 127.0.0.1:8787: ' + (serverUp ? 'есть' : 'НЕ ЗАПУЩЕН — наборы с Zig будут пропущены'));
-console.log('');
+const suites = [
+  ['эталон JS        ', 'test-engine.js'],
+  ['пресеты          ', 'make-presets.js'],
+  ['паритет Rust / JS', 'test-parity.js'],
+  ['интерфейс        ', 'test-ui.js'],
+];
 
-let bad = 0, skipped = 0;
-for (const [name, file, needsJsdom, needsServer] of suites) {
-  if (needsServer && !serverUp) { console.log('  …  ' + name + '  пропущен: нет сервера'); skipped++; continue; }
-  if (needsJsdom && !fs.existsSync(path.join(HERE, 'node_modules', 'jsdom'))) {
-    console.log('  …  ' + name + '  пропущен: нет jsdom'); skipped++; continue;
-  }
+let bad = 0;
+for (const [name, file] of suites) {
   let out;
   let okRun = true;
   try {
@@ -44,9 +38,9 @@ for (const [name, file, needsJsdom, needsServer] of suites) {
   }
   const last = out.trim().split('\n').filter(Boolean).pop() || '(нет вывода)';
   console.log((okRun ? '  ok ' : '  ✗  ') + name + '  ' + last);
-  if (!okRun) { bad++; console.log(out.split('\n').filter(l => l.includes('✗')).map(l => '        ' + l).join('\n')); }
+  if (!okRun) { bad++; console.log(out.split('\n').filter(l => l.includes('✗') || l.includes('ОШИБКА')).map(l => '        ' + l).join('\n')); }
 }
 
 console.log('');
 if (bad) { console.log('ПРОВАЛЕНО наборов: ' + bad); process.exit(1); }
-console.log('Все наборы пройдены' + (skipped ? ' (пропущено: ' + skipped + ')' : ''));
+console.log('Все наборы пройдены');

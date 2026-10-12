@@ -1,70 +1,83 @@
 "use strict";
-/* ЗЕРНО · экспорт и импорт: PNG, WEBP, JSON, CSS в буфер.
-   Зависит от engine.js и doc.js. */
+/* ЗЕРНО · файлы: открыть, сохранить, сохранить как, экспорт PNG/WEBP, CSS в буфер,
+   файлы, брошенные на окно. Зависит от engine.js, history.js, library.js.
+   Диалоги и запись на диск — на стороне приложения (app/src/files.rs). */
 
-
+/** Имя файла из имени пресета: только запрещённые Windows символы → «_».
+    Пустое имя остаётся пустым — поле в диалоге просто будет пустым. */
 function safeName(s){
   const forbidden='\\/:*?"<>|';
   let v='';
-  for(const ch of String(s||'')){
+  for(const ch of String(s)){
     const c=ch.codePointAt(0);
     v+=(c<32||c===127||forbidden.indexOf(ch)>=0)?'_':ch;
   }
-  v=v.replace(/\s+/g,' ').replace(/[. ]+$/,'').trim();
-  return v||'noise';
+  return v.replace(/\s+/g,' ').replace(/[. ]+$/,'').trim();
 }
-function download(blob,filename){
-  const a=document.createElement('a');
-  const u=URL.createObjectURL(blob);
-  a.href=u; a.download=filename;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(u),8000);
-}
+
 function guard(fn){ Promise.resolve().then(fn).catch(e=>toast(e.message,true)); }
 
-function webpSupported(){
-  const c=document.createElement('canvas');
-  c.width=c.height=1;
-  return c.toDataURL('image/webp').indexOf('data:image/webp')===0;
+function docText(){ return JSON.stringify(serializeDoc(doc),null,2)+'\n'; }
+
+function inLibrary(path){
+  return !!lib.dir&&!!path&&path.replace(/\//g,'\\').toLowerCase().startsWith(lib.dir.replace(/\//g,'\\').replace(/\\?$/,'\\').toLowerCase());
 }
 
-/** Один тайл текущего документа через активный движок. */
+async function afterSave(path){
+  markSaved(path);
+  toast('Сохранено: '+path);
+  if(inLibrary(path)) await reloadLibrary();
+}
+
+/** Ctrl+S: в связанный файл; если связи нет — как «Сохранить как…». */
+async function saveDoc(){
+  const f=boundFile();
+  if(!f) return saveDocAs();
+  await call('doc_save',{path:f,text:docText()});
+  await afterSave(f);
+}
+
+async function saveDocAs(){
+  const path=await call('doc_save_as',{text:docText(),suggested:safeName(doc.name)});
+  if(path) await afterSave(path);
+}
+
+function loadOpened(o){
+  const res=parsePresetFiles([{name:o.name,text:o.text}]);
+  if(res.skipped.length) throw new Error('«'+o.name+'» — не пресет ЗЕРНО (нет "format": "'+FORMAT+'").');
+  if(res.errors.length) throw new Error(res.errors.join('\n'));
+  openDocument(res.items[0].doc,o.path,true);
+  toast('Открыт: '+o.path+'  ·  Ctrl+Z вернёт прежний документ');
+}
+
+async function openFile(){
+  const o=await call('doc_open');
+  if(o) loadOpened(o);
+}
+
+async function exportPng(){
+  const r=await call('export_png',{
+    request:{jobs:[{width:doc.tile.width,height:doc.tile.height,doc:serializeDoc(doc)}]},
+    suggested:safeName(doc.name)
+  });
+  if(r) toast('PNG сохранён: '+r.path+'  ·  '+(r.bytes/1024).toFixed(1)+' КБ');
+}
+
+/** Один тайл текущего документа в canvas. */
 async function renderCurrent(){
   const [t]=await renderTiles([{doc:serializeDoc(doc),width:doc.tile.width,height:doc.tile.height}]);
   return tileToCanvas(t);
 }
 
-async function exportImage(type,ext,quality){
-  if(type==='image/webp'&&!webpSupported())
-    throw new Error('Этот браузер не умеет кодировать WebP через canvas. Сохраните PNG.');
+/* WebP кодирует движок WebView2 (Chromium): качество 1.00 — без потерь. */
+async function exportWebp(){
   const cv=await renderCurrent();
-  const blob=await new Promise((res,rej)=>cv.toBlob(
-    b=>b?res(b):rej(new Error('Не удалось закодировать изображение как '+type+'.')),type,quality));
-  const fn=safeName(doc.name)+'.'+ext;
-  download(blob,fn);
-  toast('Сохранено: '+fn+'  ·  '+(blob.size/1024).toFixed(1)+' КБ');
-}
-
-function exportJson(){
-  const txt=JSON.stringify(serializeDoc(doc),null,2);
-  const fn=safeName(doc.name)+'.json';
-  download(new Blob([txt],{type:'application/json'}),fn);
-  toast('Сохранено: '+fn);
-}
-
-async function copyText(txt){
-  if(navigator.clipboard&&window.isSecureContext){
-    try{ await navigator.clipboard.writeText(txt); return; }catch(_){}
-  }
-  const ta=document.createElement('textarea');
-  ta.value=txt;
-  ta.style.cssText='position:fixed;left:-9999px;top:0';
-  document.body.appendChild(ta);
-  ta.select();
-  let ok=false;
-  try{ ok=document.execCommand('copy'); }catch(_){ ok=false; }
-  ta.remove();
-  if(!ok) throw new Error('Браузер не дал доступ к буферу обмена.');
+  const blob=await new Promise(res=>cv.toBlob(res,'image/webp',doc.render.webpQuality));
+  if(!blob||blob.type!=='image/webp')
+    throw new Error('WebView не закодировал WebP (получено: '+(blob?blob.type:'ничего')+'). Сохраните PNG.');
+  const bytes=new Uint8Array(await blob.arrayBuffer());
+  const r=await call('export_bytes',bytes,{headers:{'x-ext':'webp','x-name':encodeURIComponent(safeName(doc.name))}});
+  if(r) toast('WEBP сохранён: '+r.path+'  ·  '+(r.bytes/1024).toFixed(1)+' КБ');
 }
 
 async function copyCss(){
@@ -75,58 +88,33 @@ async function copyCss(){
     'background-image:url("'+url+'");\n'+
     'background-repeat:repeat;\n'+
     'background-size:'+doc.tile.width+'px '+doc.tile.height+'px;';
-  await copyText(css);
+  await navigator.clipboard.writeText(css);
   toast('CSS скопирован в буфер ('+(css.length/1024).toFixed(1)+' КБ вместе с data-URI).');
 }
 
-function loadDoc(d,srcName){
-  doc=d;
-  $('docName').value=doc.name;
-  for(const k of Object.keys(cardState)) delete cardState[k];
-  lib.currentName=srcName||null;
-  buildLeft();
-  renderLib();
-  scheduleRender();
-}
-
-async function importFiles(fileList){
-  const files=[];
-  for(const f of fileList){
-    if(!/\.json$/i.test(f.name)){ toast('Пропущен «'+f.name+'»: ожидается *.json',true); continue; }
-    files.push({name:f.name,text:await f.text()});
-  }
-  if(!files.length) return;
-  const res=parsePresetFiles(files);
-  if(res.errors.length) toast('Ошибки импорта:\n· '+res.errors.join('\n· '),true);
-  if(res.skipped.length) toast('Не формат ЗЕРНО: '+res.skipped.join(', '),true);
-  if(!res.items.length) return;
-  const byName=new Map(lib.items.map(i=>[i.name,i]));
-  for(const it of res.items) byName.set(it.name,it);
-  lib.items=Array.from(byName.values());
-  if(lib.source==='none') lib.source='input';
-  loadDoc(cloneDoc(res.items[0].doc),res.items[0].name);
-  libStatus('Импортировано файлов: '+res.items.length+'. Всего в списке: '+lib.items.length+'.','ok');
-  toast('Загружено: '+res.items[0].name);
+/** Файлы, брошенные на окно: открывается первый *.json, о прочих — сообщение. */
+function initDrop(){
+  const stage=$('stage');
+  tauri().webview.getCurrentWebview().onDragDropEvent(e=>{
+    const p=e.payload;
+    if(p.type==='enter'||p.type==='over'){ stage.classList.add('drop'); return; }
+    stage.classList.remove('drop');
+    if(p.type!=='drop') return;
+    const json=p.paths.filter(x=>/\.json$/i.test(x));
+    const other=p.paths.filter(x=>!/\.json$/i.test(x));
+    if(other.length) toast('Пропущено (ожидается *.json): '+other.join(', '),true);
+    if(json.length>1) toast('Брошено пресетов: '+json.length+'. Открыт первый: '+json[0],true);
+    if(json.length) guard(async()=>loadOpened(await call('doc_read',{path:json[0]})));
+  }).catch(e=>toast('Перетаскивание файлов недоступно: '+e,true));
 }
 
 function initExport(){
-  $('btnPng').addEventListener('click',()=>guard(()=>exportImage('image/png','png',undefined)));
-  $('btnWebp').addEventListener('click',()=>guard(()=>exportImage('image/webp','webp',doc.render.webpQuality)));
-  $('btnJson').addEventListener('click',()=>guard(exportJson));
+  $('btnOpen').addEventListener('click',()=>guard(openFile));
+  $('btnSave').addEventListener('click',()=>guard(saveDoc));
+  $('btnSaveAs').addEventListener('click',()=>guard(saveDocAs));
+  $('btnPng').addEventListener('click',()=>guard(exportPng));
+  $('btnWebp').addEventListener('click',()=>guard(exportWebp));
   $('btnCss').addEventListener('click',()=>guard(copyCss));
-  $('btnImport').addEventListener('click',()=>$('fileJson').click());
-  $('fileJson').addEventListener('change',e=>{
-    const fs=Array.from(e.target.files);
-    e.target.value='';
-    guard(()=>importFiles(fs));
-  });
-  $('docName').addEventListener('input',()=>{ doc.name=$('docName').value; });
-
-  document.addEventListener('dragover',e=>{ e.preventDefault(); });
-  document.addEventListener('drop',e=>{
-    e.preventDefault();
-    const fs=Array.from(e.dataTransfer.files||[]);
-    if(fs.length) guard(()=>importFiles(fs));
-  });
+  $('docName').addEventListener('input',()=>{ doc.name=$('docName').value; noteChange(); });
+  initDrop();
 }
-

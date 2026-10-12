@@ -1,6 +1,7 @@
 "use strict";
-/* ЗЕРНО · режимы наложения и композит документа в линейном свете.
-   Зависит от field.js и shape.js. */
+/* ЗЕРНО · ЭТАЛОН ДЛЯ ТЕСТОВ: в приложение не входит, считает движок на Rust (engine/).
+   режимы наложения и композит документа в линейном свете.
+   Зависит от field.js, shape.js и ui/js/color.js. */
 
 
 const BLEND_ID={normal:0,multiply:1,screen:2,overlay:3,'hard-light':4,'soft-light':5,

@@ -207,15 +207,44 @@ function hexToOkhsl(hex){
   return srgbToOkhsl(parseInt(s.slice(0,2),16),parseInt(s.slice(2,4),16),parseInt(s.slice(4,6),16));
 }
 
-/* Таблица линейный → sRGB, чтобы убрать Math.pow из горячего цикла. */
-const SR_N=16385;
-const SRLUT=new Float32Array(SR_N);
-for(let i=0;i<SR_N;i++) SRLUT[i]=srgbTransfer(i/(SR_N-1));
-function lin2srgb(a){
-  if(a<=0) return 0;
-  if(a>=1) return 1;
-  const f=a*(SR_N-1), i=f|0, t=f-i;
-  const v0=SRLUT[i], v1=SRLUT[i+1];
-  return v0+(v1-v0)*t;
+/* ---------------- OKLCH: второй режим редактора цвета ----------------
+   В документе цвет всегда хранится в OKHSL — он внутри гамута sRGB по
+   построению. OKLCH — только способ правки: L и C из Oklab, тон H — тот же
+   угол, что у OKHSL, поэтому h переходит между режимами без изменений. */
+
+/** OKHSL {h,s,l} → OKLCH {L,C,H}. */
+function okhslToOklch(c){
+  const [L,a,b]=okhslToOklab(c.h,c.s,c.l);
+  return {L:L, C:Math.sqrt(a*a+b*b), H:c.h};
 }
 
+/** Наибольшая хрома, при которой цвет с этими L и H ещё внутри гамута sRGB. */
+function maxChroma(L,H){
+  if(L<=0||L>=1) return 0;
+  const hr=H/360*2*Math.PI;
+  return getCs(L,Math.cos(hr),Math.sin(hr))[2];
+}
+
+/** OKLCH → OKHSL. Хрома за границей гамута — исключение, а не тихая обрезка:
+    решать, что делать с такой хромой, должен вызывающий. */
+function oklchToOkhsl(L,C,H){
+  if(!(L>=0&&L<=1)) throw new Error('OKLCH: L='+L+' вне диапазона [0; 1]');
+  if(!(C>=0)) throw new Error('OKLCH: C='+C+' меньше нуля');
+  if(!(H>=0&&H<=360)) throw new Error('OKLCH: H='+H+' вне диапазона [0; 360]');
+  /* toe(0)=0 и toe(1)=1 с точностью до последнего бита — зажим только его. */
+  const l=clamp01(toe(L));
+  if(L<=0||L>=1||C<=1e-9) return {h:H,s:0,l:l};
+  const hr=H/360*2*Math.PI;
+  const [C0,Cmid,Cmax]=getCs(L,Math.cos(hr),Math.sin(hr));
+  if(C>Cmax*(1+1e-9))
+    throw new Error('OKLCH: C='+C.toFixed(4)+' за границей гамута sRGB ('+Cmax.toFixed(4)+') при L='+L.toFixed(3)+', H='+H.toFixed(1));
+  let s;
+  if(C<Cmid){
+    const k1=OK_MID*C0, k2=1-k1/Cmid;
+    s=(C/(k1+k2*C))*OK_MID;
+  }else{
+    const k0=Cmid, k1=(1-OK_MID)*Cmid*Cmid*OK_MID_INV*OK_MID_INV/C0, k2=1-k1/(Cmax-Cmid);
+    s=OK_MID+(1-OK_MID)*((C-k0)/(k1+k2*(C-k0)));
+  }
+  return {h:H, s:clamp01(s), l:l};
+}

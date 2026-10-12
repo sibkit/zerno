@@ -1,19 +1,35 @@
-/* Редактор цвета OKHSL: образец, HEX, ползунки H/S/L/A. */
+/* Редактор цвета: свёрнут в строку «образец · заголовок · HEX · режим · шеврон»,
+   ползунки раскрываются по клику. Режим OKHSL или OKLCH общий для всех редакторов. */
 .ok{border:1px solid var(--line);border-radius:var(--r);background:var(--panel-2);overflow:hidden;margin:6px 0 2px}
-.ok-h{display:flex;align-items:center;gap:9px;padding:8px 9px;border-bottom:1px solid var(--line)}
+.ok-h{display:flex;align-items:center;gap:9px;padding:6px 8px;cursor:pointer}
+.ok-h:hover{background:var(--panel-3)}
+.ok.open .ok-h{border-bottom:1px solid var(--line)}
 .ok-sw{
-  width:34px;height:26px;border-radius:2px;flex:none;border:1px solid #000;
+  width:36px;height:24px;border-radius:3px;flex:none;border:1px solid #000;
   background-image:linear-gradient(45deg,#2a2f36 25%,transparent 25%,transparent 75%,#2a2f36 75%),
                    linear-gradient(45deg,#2a2f36 25%,transparent 25%,transparent 75%,#2a2f36 75%);
   background-size:8px 8px;background-position:0 0,4px 4px;background-color:#1a1e23;
   position:relative;
 }
-.ok-sw i{position:absolute;inset:0;border-radius:1px}
-.ok-title{font:500 10px/1 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);flex:none}
+.ok-sw i{position:absolute;inset:0;border-radius:2px}
+.ok-title{font:400 var(--fs-s)/1 var(--sans);color:var(--ink-2);flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ok-hex{
-  margin-left:auto;width:98px;background:var(--panel-3);border:1px solid var(--line);
-  color:var(--ink-2);font:500 10.5px/1 var(--mono);padding:5px 4px;border-radius:2px;
-  text-align:center;outline:none;letter-spacing:.05em;
+  width:86px;background:var(--panel-3);border:1px solid var(--line);
+  color:var(--ink-2);font:500 var(--fs-s)/1 var(--mono);padding:5px 4px;border-radius:3px;
+  text-align:center;outline:none;
 }
 .ok-hex:focus{border-color:var(--acc-dim);color:var(--ink)}
-.ok-b{padding:4px 9px 8px}
+.ok-mode{display:flex;border:1px solid var(--line-2);border-radius:3px;overflow:hidden;flex:none}
+.ok-mode button{font:500 10px/1 var(--mono);letter-spacing:.04em;padding:5px 6px;cursor:pointer;
+  background:transparent;border:0;color:var(--ink-3)}
+.ok-mode button:hover{color:var(--ink)}
+.ok-mode button.on{background:var(--acc-bg);color:var(--acc)}
+.ok-chev{width:7px;height:7px;flex:none;border-right:1.5px solid var(--ink-3);border-bottom:1.5px solid var(--ink-3);
+  transform:rotate(-45deg);transition:transform .15s;margin:0 3px}
+.ok.open .ok-chev{transform:rotate(45deg)}
+.ok-b{padding:4px 9px 8px;display:none}
+.ok.open .ok-b{display:block}
+.ok .row{grid-template-columns:22px 1fr 64px}
+.ok .row>label{font-family:var(--mono)}
+.ok-note{font:400 var(--fs-xs)/1.4 var(--sans);color:var(--warn);padding:4px 0 0 32px}

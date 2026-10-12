@@ -1,6 +1,6 @@
 "use strict";
 /* ЗЕРНО · кирпичики интерфейса: узлы, всплывашка, строка-поле, список, флажок,
-   редактор цвета, складной раздел. Зависит от color.js. */
+   редактор цвета (OKHSL/OKLCH), складной раздел. Зависит от color.js и doc.js (round4). */
 
 
 const $=id=>document.getElementById(id);
@@ -125,7 +125,7 @@ function makeCheck(parent,label,get,set,onInput){
 
 function subHead(parent,txt){ parent.appendChild(el('div','sub-h',txt)); }
 
-/* ---------------------- редактор цвета OKHSL ---------------------- */
+/* ---------------------- редактор цвета: OKHSL или OKLCH ---------------------- */
 
 function gradStops(mk,n){
   const out=[];
@@ -133,31 +133,106 @@ function gradStops(mk,n){
   return 'linear-gradient(90deg,'+out.join(',')+')';
 }
 
-function makeColorEditor(parent,title,c,onChange){
-  const box=el('div','ok');
+/* Режим общий для всех редакторов и запоминается. Пока его не меняли —
+   OKHSL: родное пространство документа, так редактор работал всегда. */
+const COLOR_MODES={okhsl:'HSL',oklch:'LCH'};
+const OKLCH_C_MAX=0.33;   /* верх шкалы C: самая насыщенная точка гамута sRGB ≈ 0.322 */
+let colorMode=(function(){
+  const v=localStorage.getItem('zerno.colorMode');
+  if(v===null) return 'okhsl';
+  if(!(v in COLOR_MODES)){
+    setTimeout(()=>toast('Сохранённый режим цвета «'+v+'» неизвестен — выбран HSL.',true),0);
+    return 'okhsl';
+  }
+  return v;
+})();
+function setColorMode(m){
+  if(!(m in COLOR_MODES)) throw new Error('setColorMode: неизвестный режим "'+m+'"');
+  if(m===colorMode) return;
+  colorMode=m;
+  localStorage.setItem('zerno.colorMode',m);
+  document.dispatchEvent(new Event('zerno:colormode'));
+}
+
+/* Какие редакторы раскрыты: ключ → true. Переживает пересборку колонки. */
+const okOpen={};
+
+/**
+ * Редактор цвета c={h,s,l,a} (OKHSL, правится на месте).
+ * key — постоянный ключ для памяти «раскрыт/свёрнут».
+ */
+function makeColorEditor(parent,key,title,c,onChange){
+  const box=el('div','ok'+(okOpen[key]?' open':''));
   const head=el('div','ok-h');
   const sw=el('div','ok-sw');
   const swi=document.createElement('i');
   sw.appendChild(swi);
   const hex=document.createElement('input');
   hex.className='ok-hex'; hex.spellcheck=false;
-  head.append(sw,el('div','ok-title',title),hex);
+  const mode=el('div','ok-mode');
+  for(const m of Object.keys(COLOR_MODES)){
+    const b=el('button',m===colorMode?'on':null,COLOR_MODES[m]);
+    b.title=m==='okhsl'?'OKHSL: тон, насыщенность, светлота — всегда внутри sRGB':
+                        'OKLCH: светлота, хрома, тон — C ограничена гамутом sRGB';
+    b.addEventListener('click',e=>{ e.stopPropagation(); setColorMode(m); });
+    mode.appendChild(b);
+  }
+  head.append(sw,el('div','ok-title',title),hex,mode,el('span','ok-chev'));
+  head.addEventListener('click',e=>{
+    if(e.target.closest('input,button')) return;
+    okOpen[key]=!okOpen[key];
+    box.classList.toggle('open',!!okOpen[key]);
+  });
   const body=el('div','ok-b');
   box.append(head,body);
   parent.appendChild(box);
 
   const rows=[];
   const push=o=>rows.push(makeRow(body,o));
-  const upd=()=>{ refresh(); onChange(); };
+  let note=null;
 
-  push({label:'H',min:0,max:360,step:0.5,get:()=>c.h,set:v=>c.h=v,onInput:upd,
-        track:()=>gradStops(t=>okhslToCss({h:t*360,s:Math.max(c.s,0.35),l:c.l<0.15?0.5:c.l},1),13)});
-  push({label:'S',min:0,max:1,step:0.005,get:()=>c.s,set:v=>c.s=v,onInput:upd,
-        track:()=>gradStops(t=>okhslToCss({h:c.h,s:t,l:c.l<0.08?0.5:c.l},1),7)});
-  push({label:'L',min:0,max:1,step:0.005,get:()=>c.l,set:v=>c.l=v,onInput:upd,
-        track:()=>gradStops(t=>okhslToCss({h:c.h,s:c.s,l:t},1),9)});
-  push({label:'A',min:0,max:1,step:0.005,get:()=>c.a,set:v=>c.a=v,onInput:upd,
+  if(colorMode==='okhsl'){
+    const upd=()=>{ refresh(); onChange(); };
+    push({label:'H',min:0,max:360,step:0.5,get:()=>c.h,set:v=>c.h=v,onInput:upd,
+          track:()=>gradStops(t=>okhslToCss({h:t*360,s:Math.max(c.s,0.35),l:c.l<0.15?0.5:c.l},1),13)});
+    push({label:'S',min:0,max:1,step:0.005,get:()=>c.s,set:v=>c.s=v,onInput:upd,
+          track:()=>gradStops(t=>okhslToCss({h:c.h,s:t,l:c.l<0.08?0.5:c.l},1),7)});
+    push({label:'L',min:0,max:1,step:0.005,get:()=>c.l,set:v=>c.l=v,onInput:upd,
+          track:()=>gradStops(t=>okhslToCss({h:c.h,s:c.s,l:t},1),9)});
+  }else{
+    /* lch.want — хрома, которую попросил пользователь. Если при новых L или H
+       она не помещается в гамут, C снижается до границы, и это видно в подписи;
+       вернёшь L/H обратно — хрома вернётся к заказанной. */
+    const lch=okhslToOklch(c);
+    lch.want=lch.C;
+    note=el('div','ok-note');
+    const apply=()=>{
+      const cmax=maxChroma(lch.L,lch.H);
+      lch.C=Math.min(lch.want,cmax);
+      const v=oklchToOkhsl(lch.L,lch.C,lch.H);
+      c.h=v.h; c.s=v.s; c.l=v.l;
+      if(lch.want>cmax+1e-6){
+        note.textContent='C снижена до границы гамута sRGB: '+fmt(lch.C,3)+' (задано '+fmt(lch.want,3)+').';
+        note.style.display='';
+      }else note.style.display='none';
+      refresh(); onChange();
+    };
+    const css=(L,C,H)=>okhslToCss(oklchToOkhsl(L,Math.min(C,maxChroma(L,H)),H),1);
+    push({label:'L',min:0,max:1,step:0.001,get:()=>lch.L,set:v=>lch.L=v,onInput:apply,
+          track:()=>gradStops(t=>css(t,lch.want,lch.H),11)});
+    push({label:'C',min:0,max:OKLCH_C_MAX,step:0.001,get:()=>lch.C,set:v=>lch.want=v,onInput:apply,
+          track:()=>{
+            const cmax=maxChroma(lch.L,lch.H);
+            /* за границей гамута шкала тёмная: туда хрома не пойдёт */
+            return gradStops(t=>t*OKLCH_C_MAX<=cmax?css(lch.L,t*OKLCH_C_MAX,lch.H):'#121418',17);
+          }});
+    push({label:'H',min:0,max:360,step:0.5,get:()=>lch.H,set:v=>lch.H=v,onInput:apply,
+          track:()=>gradStops(t=>css(lch.L,Math.max(lch.want,0.08),t*360),13)});
+    hex.addEventListener('change',()=>{ const q=okhslToOklch(c); lch.L=q.L; lch.C=q.C; lch.want=q.C; lch.H=q.H; refresh(); });
+  }
+  push({label:'A',min:0,max:1,step:0.005,get:()=>c.a,set:v=>c.a=v,onInput:()=>{ refresh(); onChange(); },
         track:()=>gradStops(t=>okhslToCss(c,t),5)});
+  if(note){ note.style.display='none'; body.appendChild(note); }
 
   function refresh(){
     swi.style.background=okhslToCss(c);
@@ -170,7 +245,7 @@ function makeColorEditor(parent,title,c,onChange){
       c.h=round4(v.h); c.s=round4(v.s); c.l=round4(v.l);
       refresh(); onChange();
     }catch(e){ toast(e.message,true); hex.value=okhslToHex(c); }
-  });
+  },true);
   refresh();
   return {refresh};
 }

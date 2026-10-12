@@ -1,28 +1,29 @@
-/* Карточки шумовых каналов: заголовок с миниатюрой, тело, перетаскивание. */
-.chans{display:flex;flex-direction:column;gap:7px;padding-top:4px}
+/* Карточки шумовых каналов: заголовок с миниатюрой и полосой цвета, тело. */
+.chans{display:flex;flex-direction:column;gap:8px;padding-top:4px}
 .card{
   border:1px solid var(--line);border-radius:var(--r);background:var(--panel-2);
   overflow:hidden;transition:border-color .15s,opacity .15s;
 }
 .card.open{border-color:var(--line-2)}
-.card.off{opacity:.42}
-.card.dragging{opacity:.3}
-.card.over{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc-dim)}
-.card-h{display:flex;align-items:center;gap:8px;padding:7px 8px;cursor:pointer;user-select:none}
+.card.off{opacity:.45}
+.card-h{display:flex;align-items:center;gap:9px;padding:7px 8px;cursor:pointer}
 .card-h:hover{background:var(--panel-3)}
 .card.open .card-h{background:var(--panel-3);border-bottom:1px solid var(--line)}
-.thumb{width:38px;height:38px;flex:none;border:1px solid #000;border-radius:2px;display:block;background:#0b0d10}
-.card-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.thumb{width:44px;height:44px;flex:none;border:1px solid #000;border-radius:3px;display:block;background:#0b0d10}
+.card-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
 .card-name{
-  background:transparent;border:0;color:var(--ink);font:500 12px/1.1 var(--sans);
-  outline:none;width:100%;padding:1px 2px;border-radius:2px;
+  background:transparent;border:0;color:var(--ink);font:500 var(--fs)/1.15 var(--sans);
+  outline:none;width:100%;padding:1px 3px;border-radius:3px;
 }
 .card-name:focus{background:var(--panel);box-shadow:0 0 0 1px var(--acc-dim)}
-.card-meta{font:400 9.5px/1 var(--mono);color:var(--ink-3);letter-spacing:.04em;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.card-a{display:flex;gap:2px;flex:none}
-
-.card-b{padding:6px 10px 12px;display:none}
+.card-meta{font:400 var(--fs-xs)/1 var(--mono);color:var(--ink-3);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:3px}
+/* полоса «низ → верх» поверх шахматки: видно и цвет, и прозрачность */
+.card-ramp{height:5px;border-radius:2px;margin-left:3px;
+  background-image:var(--ramp),
+    linear-gradient(45deg,#2a2f36 25%,transparent 25%,transparent 75%,#2a2f36 75%),
+    linear-gradient(45deg,#2a2f36 25%,transparent 25%,transparent 75%,#2a2f36 75%);
+  background-size:100% 100%,6px 6px,6px 6px;background-position:0 0,0 0,3px 3px;background-color:#1a1e23}
+.card-a{display:flex;gap:1px;flex:none}
+.card-b{padding:6px 11px 13px;display:none}
 .card.open .card-b{display:block}
-
-.add-ch{width:100%;justify-content:center;margin-top:9px}

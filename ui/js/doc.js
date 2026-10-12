@@ -164,7 +164,7 @@ function validateDoc(raw,src){
     const doc={
       format:FORMAT, version:DOC_VERSION,
       name:vStr(o,'документ','name'),
-      tile:{width:vInt(t,'документ.tile','width',8,4096),height:vInt(t,'документ.tile','height',8,4096)},
+      tile:{width:vInt(t,'документ.tile','width',TILE_MIN,TILE_MAX),height:vInt(t,'документ.tile','height',TILE_MIN,TILE_MAX)},
       render:{
         stopMix:vEnum(r,'документ.render','stopMix',STOP_MIX),
         dither:{mode:vEnum(dz,'документ.render.dither','mode',DITHER_MODES),

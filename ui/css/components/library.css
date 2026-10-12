@@ -1,29 +1,28 @@
-/* Библиотека пресетов: шапка, строка состояния, плитки миниатюр. */
-.lib-h{padding:11px 12px 8px;border-bottom:1px solid var(--line)}
-.lib-t{font:500 10px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);
-  display:flex;align-items:center;gap:8px;margin-bottom:9px}
-.lib-t .cnt{margin-left:auto}
-.lib-btns{display:flex;flex-wrap:wrap;gap:4px}
+/* Библиотека пресетов: шапка, путь к папке, плитки миниатюр. */
+.lib-h{padding:12px 12px 9px;border-bottom:1px solid var(--line)}
+.lib-t{font:500 var(--fs-xs)/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);
+  display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.lib-t .cnt{margin-left:auto;color:var(--ink-3);letter-spacing:.04em}
+.lib-btns{display:flex;flex-wrap:wrap;gap:5px}
 .lib-status{
-  font:400 10px/1.45 var(--mono);color:var(--ink-3);padding:8px 12px;letter-spacing:.02em;
-  border-bottom:1px solid var(--line);word-break:break-word;
+  font:400 var(--fs-xs)/1.45 var(--sans);color:var(--ink-3);padding:8px 12px;
+  border-bottom:1px solid var(--line);word-break:break-word;white-space:pre-wrap;max-height:30%;overflow:auto;
 }
 .lib-status.err{color:var(--danger)}
-.lib-status.ok{color:var(--ok)}
-.lib-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:10px 12px 18px}
+.lib-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px 18px;overflow-y:auto;align-content:start;flex:1}
 .pre{
   border:1px solid var(--line);border-radius:var(--r);overflow:hidden;cursor:pointer;
   background:var(--panel-2);transition:.13s;position:relative;
 }
 .pre:hover{border-color:var(--line-2);transform:translateY(-1px)}
 .pre.cur{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc-dim)}
-.pre canvas{width:100%;height:74px;display:block;background:#0b0d10}
-.pre-n{font:400 9.5px/1.25 var(--mono);color:var(--ink-2);padding:5px 6px;letter-spacing:.02em;
+.pre canvas{width:100%;height:76px;display:block;background:#0b0d10}
+.pre-n{font:400 var(--fs-xs)/1.3 var(--sans);color:var(--ink-2);padding:5px 7px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-top:1px solid var(--line)}
 .pre .rm{
-  position:absolute;right:3px;top:3px;width:18px;height:18px;display:none;place-items:center;
-  background:rgba(8,9,11,.85);border:1px solid var(--line-2);border-radius:2px;color:var(--ink-3);
-  font:500 11px/1 var(--mono);
+  position:absolute;right:4px;top:4px;width:22px;height:22px;display:none;place-items:center;
+  background:rgba(8,9,11,.85);border:1px solid var(--line-2);border-radius:3px;color:var(--ink-2);
+  font:500 var(--fs-s)/1 var(--mono);
 }
 .pre:hover .rm{display:grid}
 .pre .rm:hover{color:var(--danger);border-color:#5a2320}

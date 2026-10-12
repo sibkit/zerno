@@ -26,6 +26,9 @@ const DITHER_MODES={tpdf:'TPDF (шумовой)',ordered:'Байер 8×8',off:'
    в узлах тождественно ноль. Поэтому это предел и для октав, и для базы. */
 const MIN_CELL_PX=2;
 
+/* Пределы стороны плитки — те же, что проверяет движок (engine/src/doc.rs). */
+const TILE_MIN=8, TILE_MAX=4096;
+
 /** Число ячеек базовой октавы. Сверху ограничено физикой: ячейка ≥ 2 px. */
 function baseCells(n,W,H){
   const lim=d=>Math.max(1,Math.floor(d/MIN_CELL_PX));

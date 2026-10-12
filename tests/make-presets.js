@@ -167,8 +167,6 @@ for (const [file, raw] of PRESETS) {
   names.push(file);
 }
 
-fs.writeFileSync(path.join(OUT, 'index.json'),
-  JSON.stringify({ files: names }, null, 2) + '\n', 'utf8');
-console.log('\nindex.json: ' + names.length + ' файлов');
+console.log('\nзаписано пресетов: ' + names.length);
 console.log(bad ? '✗ проблемных пресетов: ' + bad : '✓ все пресеты валидны, бесшовны и не вырождены');
 process.exit(bad ? 1 : 0);

@@ -3,31 +3,46 @@
    Зависит от engine.js и panels.js. */
 
 
-let renderTimer=null, previewUrl=null;
+let previewUrl=null;
 
 function setState(kind,txt){
   $('dot').className='dot'+(kind?' '+kind:'');
   $('stState').textContent=txt;
 }
+
+/* «Один рендер в полёте + флаг устаревания» вместо паузы-debounce: пока
+   движок считает, правки только помечают картинку устаревшей, а по
+   готовности сразу уходит следующий рендер с последним состоянием.
+   Превью живёт во время перетаскивания ползунка и не копит очередь. */
+const pump={busy:false,dirty:false};
 function scheduleRender(){
+  pump.dirty=true;
   setState('busy','рендер');
-  clearTimeout(renderTimer);
-  renderTimer=setTimeout(runRender,45);
+  if(!pump.busy) runPump();
+}
+async function runPump(){
+  pump.busy=true;
+  try{
+    while(pump.dirty){
+      pump.dirty=false;
+      await runRender();
+    }
+  }finally{ pump.busy=false; }
 }
 
+/* Миниатюра — тоже документ, и движок проверяет её как плитку: меньше
+   TILE_MIN по стороне не бывает. У очень вытянутых плиток (8×4096) узкая
+   сторона миниатюры поэтому чуть шире пропорции. */
 function thumbDims(W,H,maxPx){
   const k=maxPx/Math.max(W,H);
-  return [Math.max(6,Math.round(W*k)),Math.max(6,Math.round(H*k))];
+  return [Math.max(TILE_MIN,Math.round(W*k)),Math.max(TILE_MIN,Math.round(H*k))];
 }
-
-let renderSeq=0;
 
 /**
  * Один заход рендера: главная плитка и миниатюры всех каналов уходят
  * ОДНИМ пакетом. На сервере они считаются параллельно.
  */
 async function runRender(){
-  const my=++renderSeq;
   const t0=performance.now();
   const W=doc.tile.width, H=doc.tile.height;
   const [tw,th]=thumbDims(W,H,38);
@@ -50,21 +65,18 @@ async function runRender(){
   try{
     res=await renderTiles(jobs);
   }catch(e){
-    if(my!==renderSeq) return;
     setState('err','ошибка');
     toast('Ошибка рендера: '+e.message,true);
     return;
   }
-  if(my!==renderSeq) return;   /* пришёл устаревший ответ — выбрасываем */
 
-  tileToCanvas(res[0]).toBlob(b=>{
-    if(!b){ setState('err','ошибка'); toast('canvas.toBlob вернул null при подготовке превью.',true); return; }
-    const url=URL.createObjectURL(b);
-    $('field').style.backgroundImage='url("'+url+'")';
-    if(previewUrl) URL.revokeObjectURL(previewUrl);
-    previewUrl=url;
-    applyStage();
-  },'image/png');
+  const blob=await new Promise(res2=>tileToCanvas(res[0]).toBlob(res2,'image/png'));
+  if(!blob){ setState('err','ошибка'); toast('canvas.toBlob вернул null при подготовке превью.',true); return; }
+  const url=URL.createObjectURL(blob);
+  $('field').style.backgroundImage='url("'+url+'")';
+  if(previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl=url;
+  applyStage();
 
   for(let i=0;i<ids.length;i++){
     const r=cardRefs[ids[i]];
@@ -76,7 +88,7 @@ async function runRender(){
   $('stMs').textContent=(performance.now()-t0).toFixed(0)+' мс';
   $('stTile').textContent=doc.tile.width+'×'+doc.tile.height+' px';
   $('stCh').textContent=doc.channels.filter(c=>c.enabled).length+' / '+doc.channels.length;
-  setState('','готов');
+  if(!pump.dirty) setState('','готов');
 }
 
 function updateCardMeta(){
@@ -139,7 +151,7 @@ function initStage(){
     surr.appendChild(b);
   });
   $('zoom').addEventListener('input',applyStage);
-  $('zreset').addEventListener('click',()=>{ $('zoom').value=0; applyStage(); });
+  $('zreset').addEventListener('click',zoomReset);
   const tog=(id,key)=>$(id).addEventListener('click',()=>{
     stage[key]=!stage[key];
     $(id).classList.toggle('on',stage[key]);
@@ -153,5 +165,18 @@ function initStage(){
     requestAnimationFrame(applyStage);
   });
   window.addEventListener('resize',applyStage);
+  /* Ctrl + колесо над плиткой — масштаб, шаг ⅛ октавы */
+  $('stageView').addEventListener('wheel',e=>{
+    if(!e.ctrlKey) return;
+    e.preventDefault();
+    zoomBy(e.deltaY<0?0.125:-0.125);
+  },{passive:false});
 }
+
+function zoomBy(d){
+  const z=$('zoom');
+  z.value=Math.max(+z.min,Math.min(+z.max,parseFloat(z.value)+d));
+  applyStage();
+}
+function zoomReset(){ $('zoom').value=0; applyStage(); }
 

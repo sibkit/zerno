@@ -1,6 +1,6 @@
 "use strict";
 /* ЗЕРНО · состояние документа и панели левой колонки.
-   Зависит от doc.js, ui-kit.js, field.js. */
+   Зависит от model.js, doc.js, ui-kit.js, history.js. */
 
 
 let doc=null;
@@ -50,14 +50,21 @@ function buildTileSection(root){
   const chips=el('div','chips');
   for(const p of TILE_PRESETS){
     const c=el('div','chip',p+'²');
+    c.dataset.side=p;
     if(doc.tile.width===p&&doc.tile.height===p) c.classList.add('on');
-    c.addEventListener('click',()=>{ doc.tile.width=p; doc.tile.height=p; buildLeft(); scheduleRender(); });
+    c.addEventListener('click',()=>{ doc.tile.width=p; doc.tile.height=p; buildLeft(); changed(); });
     chips.appendChild(c);
   }
   s.body.appendChild(chips);
-  const upd=()=>{ buildLeft(); scheduleRender(); };
-  makeRow(s.body,{label:'Ширина',min:8,max:4096,step:1,get:()=>doc.tile.width,set:v=>doc.tile.width=v,onInput:upd});
-  makeRow(s.body,{label:'Высота',min:8,max:4096,step:1,get:()=>doc.tile.height,set:v=>doc.tile.height=v,onInput:upd});
+  /* Ползунок не пересобирает колонку: раньше пересборка уничтожала сам
+     ползунок, и перетаскивание обрывалось после первого шага. */
+  const upd=()=>{
+    for(const c of chips.children) c.classList.toggle('on',+c.dataset.side===doc.tile.width&&+c.dataset.side===doc.tile.height);
+    s.count.textContent=doc.tile.width+'×'+doc.tile.height;
+    changed();
+  };
+  makeRow(s.body,{label:'Ширина',min:TILE_MIN,max:TILE_MAX,step:1,get:()=>doc.tile.width,set:v=>doc.tile.width=v,onInput:upd});
+  makeRow(s.body,{label:'Высота',min:TILE_MIN,max:TILE_MAX,step:1,get:()=>doc.tile.height,set:v=>doc.tile.height=v,onInput:upd});
   s.body.appendChild(el('div','hint',
     'Стыковка точная при любом размере: решётка шума кратна плитке по построению.'));
   s.count.textContent=doc.tile.width+'×'+doc.tile.height;
@@ -65,9 +72,9 @@ function buildTileSection(root){
 
 function buildBgSection(root){
   const s=makeSection(root,'bg','Фон плитки');
-  makeColorEditor(s.body,'background',doc.background,()=>{
+  makeColorEditor(s.body,'background','фон',doc.background,()=>{
     s.count.textContent=okhslToHex(doc.background);
-    scheduleRender();
+    changed();
   });
   s.body.appendChild(el('div','hint','A < 1 даёт прозрачный фон в PNG/WebP.'));
   s.count.textContent=okhslToHex(doc.background);
@@ -86,7 +93,7 @@ function buildChannelsSection(root){
       const ch=factoryChannel(t);
       cardState[ch.id]={open:true};
       doc.channels.push(ch);
-      buildLeft(); scheduleRender();
+      buildLeft(); changed();
     });
     add.appendChild(c);
   }
@@ -100,7 +107,7 @@ function moveChannel(ch,dir){
   if(j<0||j>=doc.channels.length) return;
   doc.channels.splice(i,1);
   doc.channels.splice(j,0,ch);
-  buildLeft(); scheduleRender();
+  buildLeft(); changed();
 }
 
 function buildCard(ch){
@@ -115,9 +122,10 @@ function buildCard(ch){
   const t=el('div','card-t');
   const nm=document.createElement('input');
   nm.className='card-name'; nm.value=ch.name; nm.spellcheck=false;
-  nm.addEventListener('input',()=>{ ch.name=nm.value; });
+  nm.addEventListener('input',()=>{ ch.name=nm.value; noteChange(); });
   const meta=el('div','card-meta');
-  t.append(nm,meta);
+  const rampEl=el('div','card-ramp');
+  t.append(nm,meta,rampEl);
 
   const acts=el('div','card-a');
   const eye=el('button','ibtn'+(ch.enabled?' on':''),ch.enabled?'●':'○');
@@ -127,7 +135,7 @@ function buildCard(ch){
     eye.textContent=ch.enabled?'●':'○';
     eye.classList.toggle('on',ch.enabled);
     card.classList.toggle('off',!ch.enabled);
-    scheduleRender();
+    changed();
   });
   const up=el('button','ibtn','↑'); up.title='Выше';
   up.addEventListener('click',()=>moveChannel(ch,-1));
@@ -139,13 +147,13 @@ function buildCard(ch){
     c.id=uid(); c.name=ch.name+' копия'; c.noise.seed=(Math.random()*2147483647)|0;
     cardState[c.id]={open:true};
     doc.channels.splice(doc.channels.indexOf(ch)+1,0,c);
-    buildLeft(); scheduleRender();
+    buildLeft(); changed();
   });
   const del=el('button','ibtn del','✕'); del.title='Удалить';
   del.addEventListener('click',()=>{
     doc.channels.splice(doc.channels.indexOf(ch),1);
     delete cardState[ch.id]; delete cardRefs[ch.id];
-    buildLeft(); scheduleRender();
+    buildLeft(); changed();
   });
   acts.append(eye,up,dn,cp,del);
   head.append(cv,t,acts);
@@ -160,7 +168,8 @@ function buildCard(ch){
   const warn=el('div','warn');
   warn.style.display='none';
   card.append(head,body);
-  cardRefs[ch.id]={thumb:cv,meta:meta,warn:warn,card:card};
+  cardRefs[ch.id]={thumb:cv,meta:meta,warn:warn,card:card,ramp:rampEl};
+  updateRamp(ch);
   fillCardBody(ch,body,warn);
   return card;
 }
@@ -170,8 +179,8 @@ function fillCardBody(ch,body,warn){
   body.appendChild(warn);
   const n=ch.noise;
   const info=NOISE_TYPES[n.type];
-  const upd=()=>scheduleRender();
-  const rebuild=()=>{ fillCardBody(ch,body,warn); scheduleRender(); };
+  const upd=()=>changed();
+  const rebuild=()=>{ fillCardBody(ch,body,warn); changed(); };
 
   subHead(body,'Шум');
   makeSelect(body,'Тип',mapLabels(NOISE_TYPES),()=>n.type,v=>{
@@ -223,8 +232,9 @@ function fillCardBody(ch,body,warn){
   makeCheck(body,'Нормализация диапазона',()=>sh.normalize,v=>sh.normalize=v,upd);
 
   subHead(body,'Цвет');
-  makeColorEditor(body,'низ · 0',ch.low,upd);
-  makeColorEditor(body,'верх · 1',ch.high,upd);
+  const ramp=()=>{ updateRamp(ch); upd(); };
+  makeColorEditor(body,ch.id+':low','низ · шум 0',ch.low,ramp);
+  makeColorEditor(body,ch.id+':high','верх · шум 1',ch.high,ramp);
   const sw=el('div','chips');
   const swb=el('div','chip','поменять низ ⇄ верх');
   swb.addEventListener('click',()=>{
@@ -237,6 +247,14 @@ function fillCardBody(ch,body,warn){
   subHead(body,'Слой');
   makeSelect(body,'Смешив.',BLEND_MODES,()=>ch.blend,v=>ch.blend=v,upd);
   makeRow(body,{label:'Непрозр.',min:0,max:1,step:0.005,get:()=>ch.opacity,set:v=>ch.opacity=v,onInput:upd});
+}
+
+/** Полоса «низ → верх» в шапке карточки, в том же пространстве смешивания. */
+function updateRamp(ch){
+  const r=cardRefs[ch.id];
+  if(!r) return;
+  const space=doc.render.stopMix==='oklab'?'oklab':'srgb-linear';
+  r.ramp.style.setProperty('--ramp','linear-gradient(in '+space+' 90deg,'+okhslToCss(ch.low)+','+okhslToCss(ch.high)+')');
 }
 
 function mapLabels(types){
@@ -253,11 +271,19 @@ function seedRow(parent,n,onInput){
   inp.style.textAlign='left'; inp.style.cursor='text';
   inp.value=String(n.seed);
   inp.addEventListener('change',()=>{
-    const v=parseInt(inp.value,10);
-    if(!Number.isFinite(v)){ inp.classList.add('bad'); return; }
+    const t=inp.value.trim();
+    const v=Number(t);
+    /* Только целое в диапазоне int32: раньше 3000000000 молча превращалось
+       в отрицательное число через |0. */
+    if(!/^-?\d+$/.test(t)||v<-2147483648||v>2147483647){
+      inp.classList.add('bad');
+      toast('Сид — целое число от −2147483648 до 2147483647, получено «'+t+'».',true);
+      return;
+    }
     inp.classList.remove('bad');
-    n.seed=v|0; inp.value=String(n.seed); onInput();
+    n.seed=v; onInput();
   });
+  inp.addEventListener('blur',()=>{ inp.classList.remove('bad'); inp.value=String(n.seed); });
   const b=el('button','btn sm','⟳');
   b.title='Новый случайный сид';
   b.style.width='100%'; b.style.justifyContent='center';
@@ -271,11 +297,11 @@ function seedRow(parent,n,onInput){
 
 function buildOutSection(root){
   const s=makeSection(root,'out','Вывод');
-  const upd=()=>scheduleRender();
-  makeSelect(s.body,'Смешив.',STOP_MIX,()=>doc.render.stopMix,v=>doc.render.stopMix=v,upd);
+  const upd=()=>changed();
+  makeSelect(s.body,'Смешив.',STOP_MIX,()=>doc.render.stopMix,v=>doc.render.stopMix=v,()=>{ buildLeft(); changed(); });
   s.body.appendChild(el('div','hint','Интерполяция низ→верх. Режимы наложения слоёв всегда считаются в линейном свете.'));
   subHead(s.body,'Дизеринг');
-  makeSelect(s.body,'Режим',DITHER_MODES,()=>doc.render.dither.mode,v=>doc.render.dither.mode=v,()=>{ buildLeft(); scheduleRender(); });
+  makeSelect(s.body,'Режим',DITHER_MODES,()=>doc.render.dither.mode,v=>doc.render.dither.mode=v,()=>{ buildLeft(); changed(); });
   if(doc.render.dither.mode!=='off')
     makeRow(s.body,{label:'Сила, LSB',min:0,max:4,step:0.05,get:()=>doc.render.dither.amount,set:v=>doc.render.dither.amount=v,onInput:upd});
   s.body.appendChild(el('div','hint','Убирает полосы (бэндинг) на плавных градиентах при переводе в 8 бит.'));
