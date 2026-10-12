@@ -29,8 +29,10 @@ proto.getContext = function () {
   const self = this;
   return {
     canvas: self, fillStyle: '#000', font: '', strokeStyle: '#000',
-    putImageData() {}, drawImage() {}, fillRect() {}, clearRect() {}, fillText() {},
-    createPattern() { return { __pattern: true }; }
+    putImageData() {}, drawImage() {}, fillRect() {}, clearRect() {}, fillText() {}, strokeRect() {},
+    setTransform() {}, save() {}, restore() {}, beginPath() {}, rect() {}, clip() {},
+    moveTo() {}, lineTo() {}, stroke() {},
+    createPattern() { return { __pattern: true, setTransform() {} }; }
   };
 };
 proto.toBlob = function (cb, type) { cb(new win.Blob(['x'], { type: type || 'image/png' })); };
@@ -38,6 +40,10 @@ proto.toDataURL = function (type) { return 'data:' + (type || 'image/png') + ';b
 if (!win.ImageData) {
   win.ImageData = class { constructor(data, w, h) { this.data = data; this.width = w; this.height = h; } };
 }
+// сцене нужны DOMMatrix и ResizeObserver, jsdom их не знает; цвет — из токена --acc
+win.DOMMatrix = class { constructor(a) { this.m = a; } };
+win.ResizeObserver = class { constructor(cb) { this.cb = cb; } observe() {} };
+win.document.documentElement.style.setProperty('--acc', '#e8c547');
 if (!win.URL.createObjectURL) { win.URL.createObjectURL = () => 'blob:stub'; win.URL.revokeObjectURL = () => {}; }
 let clip = null;
 Object.defineProperty(win.navigator, 'clipboard', { value: { writeText: async t => { clip = t; } }, configurable: true });
@@ -139,7 +145,7 @@ const lastCall = cmd => calls.filter(c => c.cmd === cmd).pop();
   ok('статус «готов»', $('stState').textContent === 'готов', $('stState').textContent);
   ok('размер плитки в статусе', $('stTile').textContent === '512×512 px', $('stTile').textContent);
   ok('время рендера показано', /\d+ мс/.test($('stMs').textContent), $('stMs').textContent);
-  ok('превью получило фоновую картинку', /url\(/.test($('field').style.backgroundImage));
+  ok('сцена нарисована из плитки движка', $('field').dataset.tile === '512×512', $('field').dataset.tile);
   ok('фоновое зерно интерфейса построено', D.documentElement.style.getPropertyValue('--grain').indexOf('url(') === 0);
   ok('движок — Rust, число потоков', $('stEngine').textContent === 'RUST · 4 пот.', $('stEngine').textContent);
   ok('документ не связан с файлом', $('fileName').textContent === 'не сохранён в файл', $('fileName').textContent);
@@ -321,7 +327,7 @@ const lastCall = cmd => calls.filter(c => c.cmd === cmd).pop();
   {
     setRange($('zoom'), 2); await step(60);
     ok('масштаб 400%', $('zval').textContent === '400%', $('zval').textContent);
-    ok('размер фона превью пересчитан', $('field').style.backgroundSize === '1024px 1024px', $('field').style.backgroundSize);
+    ok('сцена перерисована в масштабе 4×', $('field').dataset.scale === '4', $('field').dataset.scale);
     key('Digit0', '0'); await step(40);
     ok('Ctrl+0 — 100%', $('zval').textContent === '100%', $('zval').textContent);
     $('stageView').dispatchEvent(new win.WheelEvent('wheel', { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true }));
@@ -329,9 +335,11 @@ const lastCall = cmd => calls.filter(c => c.cmd === cmd).pop();
     ok('Ctrl+колесо увеличивает', $('zval').textContent !== '100%', $('zval').textContent);
     $('zreset').click(); await step(40);
     $('tGrid').click(); await step(30);
-    ok('сетка границ включена', $('fieldGrid').classList.contains('on'));
+    ok('сетка границ включена', $('tGrid').classList.contains('on'));
+    const [ox0, oy0] = $('field').dataset.origin.split(',').map(Number);
     $('tShift').click(); await step(30);
-    ok('сдвиг на половину плитки', $('field').style.backgroundPosition === '128px 128px', $('field').style.backgroundPosition);
+    const [ox1, oy1] = $('field').dataset.origin.split(',').map(Number);
+    ok('сдвиг на половину плитки', ox0 - ox1 === 128 && oy0 - oy1 === 128, ox0 + ',' + oy0 + ' → ' + ox1 + ',' + oy1);
     $('surr').querySelectorAll('.sw-btn')[4].click();
     ok('цвет обрамления сменился', $('stageView').style.background === 'rgb(201, 204, 208)', $('stageView').style.background);
     $('tLib').click(); await step(30);

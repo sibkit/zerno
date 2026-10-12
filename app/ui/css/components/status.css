@@ -12,6 +12,10 @@
 .status .it:first-child{padding-left:0}
 .status .it:last-child{border-right:0;margin-left:auto;padding-right:0}
 .status b{color:var(--ink-2);font-weight:500}
+/* Значения, которые меняются на каждом кадре, — фиксированной ширины:
+   иначе строка состояния дёргается вместе с ними. */
+#stState{display:inline-block;min-width:6ch}
+#stMs{display:inline-block;min-width:6ch;font-variant-numeric:tabular-nums}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none;
   box-shadow:0 0 6px currentColor;color:var(--ok)}
 .dot.busy{background:var(--acc);color:var(--acc);animation:pulse .7s infinite alternate}

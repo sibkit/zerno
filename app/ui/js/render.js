@@ -3,7 +3,10 @@
    Зависит от engine.js и panels.js. */
 
 
-let previewUrl=null;
+/* Последняя готовая плитка — canvas с пикселями движка. Сцена рисуется из
+   неё синхронно: без PNG и без смены картинки фона, поэтому при
+   перетаскивании ползунка ничего не мигает. */
+const preview={tile:null};
 
 function setState(kind,txt){
   $('dot').className='dot'+(kind?' '+kind:'');
@@ -70,13 +73,7 @@ async function runRender(){
     return;
   }
 
-  const blob=await new Promise(res2=>tileToCanvas(res[0]).toBlob(res2,'image/png'));
-  if(!blob){ setState('err','ошибка'); toast('canvas.toBlob вернул null при подготовке превью.',true); return; }
-  const url=URL.createObjectURL(blob);
-  $('field').style.backgroundImage='url("'+url+'")';
-  if(previewUrl) URL.revokeObjectURL(previewUrl);
-  previewUrl=url;
-  applyStage();
+  putPreview(res[0]);
 
   for(let i=0;i<ids.length;i++){
     const r=cardRefs[ids[i]];
@@ -115,27 +112,88 @@ function updateCardMeta(){
 const stage={grid:false,shift:false,smooth:false};
 const SURROUND=['#000000','#0e1014','#3a3f46','#808080','#c9ccd0','#ffffff'];
 
-function applyStage(){
-  const W=doc.tile.width, H=doc.tile.height;
-  const z=Math.pow(2,parseFloat($('zoom').value));
-  const tw=Math.max(1,Math.round(W*z)), th=Math.max(1,Math.round(H*z));
-  const view=$('stageView');
-  const avW=Math.max(tw,view.clientWidth-72), avH=Math.max(th,view.clientHeight-72);
-  const cols=Math.max(1,Math.ceil(avW/tw)), rows=Math.max(1,Math.ceil(avH/th));
-  const f=$('field');
-  f.style.width=(cols*tw)+'px';
-  f.style.height=(rows*th)+'px';
-  f.style.backgroundSize=tw+'px '+th+'px';
-  const pos=stage.shift?Math.round(tw/2)+'px '+Math.round(th/2)+'px':'0 0';
-  f.style.backgroundPosition=pos;
-  f.classList.toggle('smooth',stage.smooth||z<1);
-  const g=$('fieldGrid');
-  g.classList.toggle('on',stage.grid);
-  g.style.backgroundPosition=pos;
-  g.style.backgroundImage=
-    'repeating-linear-gradient(90deg,rgba(232,197,71,.55) 0 1px,transparent 1px '+tw+'px),'+
-    'repeating-linear-gradient(180deg,rgba(232,197,71,.55) 0 1px,transparent 1px '+th+'px)';
+function putPreview(t){
+  let c=preview.tile;
+  if(!c||c.width!==t.w||c.height!==t.h){
+    c=document.createElement('canvas');
+    c.width=t.w; c.height=t.h;
+    preview.tile=c;
+  }
+  c.getContext('2d').putImageData(new ImageData(t.data,t.w,t.h),0,0);
+  drawStage();
+}
+
+function zoomFactor(){ return Math.pow(2,parseFloat($('zoom').value)); }
+
+/* Отступ от края сцены, CSS px: в нём виден цвет обрамления. */
+const STAGE_PAD=24;
+
+function cssToken(name){
+  const v=getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if(!v) throw new Error('В tokens.css нет переменной '+name);
+  return v;
+}
+
+/**
+ * Сцена: плитки замощают область с отступом STAGE_PAD, одна плитка — ровно
+ * посередине и отмечена уголками («Сдвиг ½» уводит в центр её угол, то есть
+ * стык). Масштаб и сдвиг — преобразованием узора, без пересборки DOM.
+ */
+function drawStage(){
+  const z=zoomFactor();
   $('zval').textContent=Math.round(z*100)+'%';
+  const cv=$('field'), view=$('stageView');
+  const dpr=window.devicePixelRatio||1;
+  const cw=Math.max(1,Math.round(view.clientWidth*dpr)), ch=Math.max(1,Math.round(view.clientHeight*dpr));
+  if(cv.width!==cw||cv.height!==ch){ cv.width=cw; cv.height=ch; }
+  const ctx=cv.getContext('2d');
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,cw,ch);
+  const t=preview.tile;
+  if(!t) return;
+
+  const pad=Math.round(STAGE_PAD*dpr);
+  const ax=pad, ay=pad, aw=Math.max(0,cw-2*pad), ah=Math.max(0,ch-2*pad);
+  const k=z*dpr, tw=t.width*k, th=t.height*k;
+  let ox=Math.round(ax+(aw-tw)/2), oy=Math.round(ay+(ah-th)/2);
+  if(stage.shift){ ox-=Math.round(tw/2); oy-=Math.round(th/2); }
+
+  ctx.imageSmoothingEnabled=stage.smooth||z<1;
+  const pat=ctx.createPattern(t,'repeat');
+  pat.setTransform(new DOMMatrix([k,0,0,k,ox,oy]));
+  ctx.fillStyle=pat;
+  ctx.fillRect(ax,ay,aw,ah);
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(ax,ay,aw,ah); ctx.clip();
+  const acc=cssToken('--acc');
+  if(stage.grid){
+    ctx.strokeStyle=acc; ctx.globalAlpha=0.55; ctx.lineWidth=1;
+    ctx.beginPath();
+    for(let x=ax+((ox-ax)%tw+tw)%tw; x<ax+aw; x+=tw){ const X=Math.round(x)+0.5; ctx.moveTo(X,ay); ctx.lineTo(X,ay+ah); }
+    for(let y=ay+((oy-ay)%th+th)%th; y<ay+ah; y+=th){ const Y=Math.round(y)+0.5; ctx.moveTo(ax,Y); ctx.lineTo(ax+aw,Y); }
+    ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+  /* уголки центральной плитки */
+  const L=Math.round(10*dpr), x0=ox+0.5, y0=oy+0.5, x1=Math.round(ox+tw)-0.5, y1=Math.round(oy+th)-0.5;
+  ctx.strokeStyle=acc; ctx.lineWidth=Math.max(1,Math.round(dpr));
+  ctx.beginPath();
+  ctx.moveTo(x0,y0+L); ctx.lineTo(x0,y0); ctx.lineTo(x0+L,y0);
+  ctx.moveTo(x1-L,y0); ctx.lineTo(x1,y0); ctx.lineTo(x1,y0+L);
+  ctx.moveTo(x0,y1-L); ctx.lineTo(x0,y1); ctx.lineTo(x0+L,y1);
+  ctx.moveTo(x1-L,y1); ctx.lineTo(x1,y1); ctx.lineTo(x1,y1-L);
+  ctx.stroke();
+  ctx.restore();
+
+  /* рамка области */
+  ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=1;
+  ctx.strokeRect(ax-0.5,ay-0.5,aw+1,ah+1);
+
+  /* для проверок: что именно нарисовано */
+  cv.dataset.tile=t.width+'×'+t.height;
+  cv.dataset.scale=String(k);
+  cv.dataset.origin=ox+','+oy;
 }
 
 function initStage(){
@@ -150,21 +208,21 @@ function initStage(){
     });
     surr.appendChild(b);
   });
-  $('zoom').addEventListener('input',applyStage);
+  $('zoom').addEventListener('input',drawStage);
   $('zreset').addEventListener('click',zoomReset);
   const tog=(id,key)=>$(id).addEventListener('click',()=>{
     stage[key]=!stage[key];
     $(id).classList.toggle('on',stage[key]);
-    applyStage();
+    drawStage();
   });
   tog('tGrid','grid'); tog('tShift','shift'); tog('tSmooth','smooth');
   $('tLib').classList.add('on');
   $('tLib').addEventListener('click',()=>{
     const hidden=$('grid').classList.toggle('no-right');
     $('tLib').classList.toggle('on',!hidden);
-    requestAnimationFrame(applyStage);
   });
-  window.addEventListener('resize',applyStage);
+  /* размер сцены меняется и окном, и скрытием библиотеки */
+  new ResizeObserver(drawStage).observe($('stageView'));
   /* Ctrl + колесо над плиткой — масштаб, шаг ⅛ октавы */
   $('stageView').addEventListener('wheel',e=>{
     if(!e.ctrlKey) return;
@@ -176,7 +234,7 @@ function initStage(){
 function zoomBy(d){
   const z=$('zoom');
   z.value=Math.max(+z.min,Math.min(+z.max,parseFloat(z.value)+d));
-  applyStage();
+  drawStage();
 }
-function zoomReset(){ $('zoom').value=0; applyStage(); }
+function zoomReset(){ $('zoom').value=0; drawStage(); }
 

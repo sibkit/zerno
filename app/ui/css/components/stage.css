@@ -16,18 +16,9 @@ input.zoom{width:96px}
 .surr{display:flex;gap:4px}
 .sw-btn{width:20px;height:20px;border:1px solid var(--line-2);border-radius:3px;cursor:pointer;padding:0}
 .sw-btn.on{box-shadow:0 0 0 1px var(--acc);border-color:var(--acc)}
-.stage-view{position:relative;overflow:auto;min-height:0;display:grid;place-items:center;padding:26px}
-.field-wrap{position:relative;box-shadow:0 0 0 1px rgba(255,255,255,.07),0 24px 64px rgba(0,0,0,.6)}
-.field{background-repeat:repeat;image-rendering:pixelated}
-.field.smooth{image-rendering:auto}
-.field-grid{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .15s}
-.field-grid.on{opacity:1}
-.ticks{position:absolute;inset:-1px;pointer-events:none;opacity:0;transition:opacity .15s}
-.ticks.on{opacity:1}
-.ticks i{position:absolute;width:9px;height:9px;border-color:var(--acc)}
-.ticks i:nth-child(1){left:-1px;top:-1px;border-left:1px solid;border-top:1px solid}
-.ticks i:nth-child(2){right:-1px;top:-1px;border-right:1px solid;border-top:1px solid}
-.ticks i:nth-child(3){left:-1px;bottom:-1px;border-left:1px solid;border-bottom:1px solid}
-.ticks i:nth-child(4){right:-1px;bottom:-1px;border-right:1px solid;border-bottom:1px solid}
+/* Сцена — один canvas на всю область: плитки рисует render.js (drawStage),
+   без прокрутки и без смены картинки фона на каждом кадре. */
+.stage-view{position:relative;overflow:hidden;min-height:0}
+.field{position:absolute;inset:0;width:100%;height:100%;display:block}
 /* файл, брошенный на окно */
 .stage.drop .stage-view{outline:2px dashed var(--acc-dim);outline-offset:-10px}
