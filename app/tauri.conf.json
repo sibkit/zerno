@@ -17,6 +17,7 @@
         "minWidth": 1040,
         "minHeight": 640,
         "dragDropEnabled": true,
+        "visible": false,
         "backgroundColor": "#120d0a"
       }
     ],

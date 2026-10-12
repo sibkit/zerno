@@ -85,6 +85,10 @@ fn main() {
             #[cfg(not(windows))]
             let tb = Some(format!("полоса заголовка окна «{}» красится только в Windows 11", win.label()));
             app.manage(TitleBarStatus(tb));
+            // Окно создаётся скрытым (tauri.conf.json, visible: false) и
+            // показывается только после окраски полосы: иначе первые ~0.3 с
+            // видна стандартная серая полоса заголовка.
+            win.show().map_err(|e| format!("главное окно не показалось: {e}"))?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
