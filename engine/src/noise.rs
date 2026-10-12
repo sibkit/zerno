@@ -8,6 +8,7 @@
 //! Арифметика дословно повторяет эталон (tests/reference/*.js): значения
 //! хранятся в `f32`, промежуточные вычисления в `f64`, порядок операций тот же.
 
+use crate::at;
 use crate::doc::{Noise, NoiseType, WorleyMode};
 use rayon::prelude::*;
 use std::sync::OnceLock;
@@ -79,6 +80,13 @@ fn alloc_f32(n: usize) -> Result<Vec<f32>, FieldError> {
     Ok(v)
 }
 
+/// Решётка шума: `px × py` узлов, оба больше нуля, длина массивов ровно
+/// `px * py`. Доступ без проверки границ в `perlin_sample`/`value_sample`
+/// держится на этом — инвариант проверяется при построении.
+fn check_lattice(px: usize, py: usize) {
+    assert!(px > 0 && py > 0, "решётка {px}×{py}: число ячеек должно быть больше нуля");
+}
+
 struct LatticeGrad {
     gx: Vec<f32>,
     gy: Vec<f32>,
@@ -87,6 +95,7 @@ struct LatticeGrad {
 }
 
 fn lattice_grad(px: usize, py: usize, seed: i32) -> Result<LatticeGrad, FieldError> {
+    check_lattice(px, py);
     let t = grad_tables();
     let mut gx = alloc_f32(px * py)?;
     let mut gy = alloc_f32(px * py)?;
@@ -108,6 +117,7 @@ struct LatticeVal {
 }
 
 fn lattice_val(px: usize, py: usize, seed: i32) -> Result<LatticeVal, FieldError> {
+    check_lattice(px, py);
     let mut v = alloc_f32(px * py)?;
     for j in 0..py {
         let r = j * px;
@@ -153,10 +163,16 @@ fn perlin_sample(l: &LatticeGrad, x: f64, y: f64) -> f64 {
     let r0 = wy.lo * l.px;
     let r1 = wy.hi * l.px;
     let (fx, fy) = (wx.f, wy.f);
-    let n00 = l.gx[r0 + wx.lo] as f64 * fx + l.gy[r0 + wx.lo] as f64 * fy;
-    let n10 = l.gx[r0 + wx.hi] as f64 * (fx - 1.0) + l.gy[r0 + wx.hi] as f64 * fy;
-    let n01 = l.gx[r1 + wx.lo] as f64 * fx + l.gy[r1 + wx.lo] as f64 * (fy - 1.0);
-    let n11 = l.gx[r1 + wx.hi] as f64 * (fx - 1.0) + l.gy[r1 + wx.hi] as f64 * (fy - 1.0);
+    let (gx, gy) = (&l.gx[..], &l.gy[..]);
+    // SAFETY: wrap_idx даёт lo, hi < p, поэтому r + lo/hi < py·px = длина решётки.
+    let (n00, n10, n01, n11) = unsafe {
+        (
+            at(gx, r0 + wx.lo) as f64 * fx + at(gy, r0 + wx.lo) as f64 * fy,
+            at(gx, r0 + wx.hi) as f64 * (fx - 1.0) + at(gy, r0 + wx.hi) as f64 * fy,
+            at(gx, r1 + wx.lo) as f64 * fx + at(gy, r1 + wx.lo) as f64 * (fy - 1.0),
+            at(gx, r1 + wx.hi) as f64 * (fx - 1.0) + at(gy, r1 + wx.hi) as f64 * (fy - 1.0),
+        )
+    };
     let a = n00 + u * (n10 - n00);
     let b = n01 + u * (n11 - n01);
     a + v * (b - a)
@@ -170,8 +186,13 @@ fn value_sample(l: &LatticeVal, x: f64, y: f64) -> f64 {
     let v = fade(wy.f);
     let r0 = wy.lo * l.px;
     let r1 = wy.hi * l.px;
-    let a = l.v[r0 + wx.lo] as f64 + u * (l.v[r0 + wx.hi] as f64 - l.v[r0 + wx.lo] as f64);
-    let b = l.v[r1 + wx.lo] as f64 + u * (l.v[r1 + wx.hi] as f64 - l.v[r1 + wx.lo] as f64);
+    let val = &l.v[..];
+    // SAFETY: wrap_idx даёт lo, hi < p, поэтому r + lo/hi < py·px = длина решётки.
+    let (v00, v10, v01, v11) = unsafe {
+        (at(val, r0 + wx.lo) as f64, at(val, r0 + wx.hi) as f64, at(val, r1 + wx.lo) as f64, at(val, r1 + wx.hi) as f64)
+    };
+    let a = v00 + u * (v10 - v00);
+    let b = v01 + u * (v11 - v01);
     a + v * (b - a)
 }
 
@@ -183,6 +204,7 @@ struct WorleyPts {
 }
 
 fn worley_points(cx: usize, cy: usize, seed: i32, jitter: f64) -> Result<WorleyPts, FieldError> {
+    check_lattice(cx, cy);
     let mut px = alloc_f32(cx * cy)?;
     let mut py = alloc_f32(cx * cy)?;
     let seed2 = seed ^ 0x9e3779b9u32 as i32;
@@ -214,8 +236,10 @@ fn worley_sample(p: &WorleyPts, x: f64, y: f64, mode: WorleyMode) -> f64 {
             let ii = ci + di;
             let iw = wrap_i(ii, cxi);
             let idx = r + iw as usize;
-            let dx = p.px[idx] as f64 + (ii - iw) as f64 - x;
-            let dy = p.py[idx] as f64 + off_j - y;
+            // SAFETY: wrap_i даёт iw ∈ [0, cx), jw ∈ [0, cy), поэтому idx < cx·cy.
+            let (ptx, pty) = unsafe { (at(&p.px, idx) as f64, at(&p.py, idx) as f64) };
+            let dx = ptx + (ii - iw) as f64 - x;
+            let dy = pty + off_j - y;
             let d = dx * dx + dy * dy;
             if d < d1 {
                 d2 = d1;
@@ -391,7 +415,9 @@ fn build_grain(n: &Noise, w: usize, h: usize) -> Result<Field, FieldError> {
 }
 
 /// Предрасчёт по столбцам: floor, дробная часть и fade от `x` не зависят от строки.
+/// Все четыре массива длиной `w`, `lo` и `hi` меньше периода `p`.
 struct Cols {
+    p: usize,
     lo: Vec<u32>,
     hi: Vec<u32>,
     f: Vec<f64>,
@@ -400,7 +426,7 @@ struct Cols {
 
 impl Cols {
     fn new(w: usize, sx: f64, px: usize) -> Cols {
-        let mut c = Cols { lo: Vec::with_capacity(w), hi: Vec::with_capacity(w), f: Vec::with_capacity(w), u: Vec::with_capacity(w) };
+        let mut c = Cols { p: px, lo: Vec::with_capacity(w), hi: Vec::with_capacity(w), f: Vec::with_capacity(w), u: Vec::with_capacity(w) };
         let pxi = px as i64;
         for x in 0..w {
             let xf = x as f64 * sx;
@@ -493,20 +519,36 @@ struct WarpRow<'a> {
 
 #[inline(always)]
 fn warp_perlin_row<const FIRST: bool, const RIDGED: bool>(row: &mut [f32], l: &LatticeGrad, a: &WarpRow) {
+    assert!(a.bx.len() == row.len() && a.by.len() == row.len(), "строка искажения не совпадает со строкой поля");
     for (x, d) in row.iter_mut().enumerate() {
-        let xx = x as f64 * a.sx + a.bx[x] as f64 * a.wax;
-        let yv = a.yf + a.by[x] as f64 * a.way;
+        // SAFETY: x < row.len() = длина строк искажения (assert выше).
+        let (bx, by) = unsafe { (at(a.bx, x) as f64, at(a.by, x) as f64) };
+        let xx = x as f64 * a.sx + bx * a.wax;
+        let yv = a.yf + by * a.way;
         put::<FIRST>(d, a.amp, ridge::<RIDGED>(perlin_sample(l, xx, yv) * 1.4142136));
     }
 }
 
 #[inline(always)]
 fn warp_value_row<const FIRST: bool, const RIDGED: bool>(row: &mut [f32], l: &LatticeVal, a: &WarpRow) {
+    assert!(a.bx.len() == row.len() && a.by.len() == row.len(), "строка искажения не совпадает со строкой поля");
     for (x, d) in row.iter_mut().enumerate() {
-        let xx = x as f64 * a.sx + a.bx[x] as f64 * a.wax;
-        let yv = a.yf + a.by[x] as f64 * a.way;
+        // SAFETY: x < row.len() = длина строк искажения (assert выше).
+        let (bx, by) = unsafe { (at(a.bx, x) as f64, at(a.by, x) as f64) };
+        let xx = x as f64 * a.sx + bx * a.wax;
+        let yv = a.yf + by * a.way;
         put::<FIRST>(d, a.amp, ridge::<RIDGED>(value_sample(l, xx, yv)));
     }
+}
+
+/// Инварианты строки без искажения, на которых держится чтение без проверки
+/// границ: таблица столбцов построена для этой решётки и не короче строки,
+/// r0 и r1 — начала строк решётки.
+#[inline(always)]
+fn check_row(w: usize, cols: &Cols, px: usize, py: usize, r0: usize, r1: usize) {
+    assert!(cols.p == px && cols.lo.len() >= w && cols.hi.len() >= w && cols.f.len() >= w && cols.u.len() >= w,
+        "таблица столбцов не подходит к строке");
+    assert!(r0 % px == 0 && r1 % px == 0 && r0 < px * py && r1 < px * py, "строка решётки вне её размера");
 }
 
 /// Строка Перлина без искажения домена: floor, дробь и fade по `x` взяты из `cols`.
@@ -516,13 +558,21 @@ fn perlin_row<const FIRST: bool, const RIDGED: bool>(
     row: &mut [f32], l: &LatticeGrad, cols: &Cols, r0: usize, r1: usize, fy: f64, vv: f64, amp: f64,
 ) {
     let (gx, gy) = (&l.gx[..], &l.gy[..]);
+    check_row(row.len(), cols, l.px, l.py, r0, r1);
     for (x, d) in row.iter_mut().enumerate() {
-        let (ia, ib) = (cols.lo[x] as usize, cols.hi[x] as usize);
-        let (fx, u) = (cols.f[x], cols.u[x]);
-        let n00 = gx[r0 + ia] as f64 * fx + gy[r0 + ia] as f64 * fy;
-        let n10 = gx[r0 + ib] as f64 * (fx - 1.0) + gy[r0 + ib] as f64 * fy;
-        let n01 = gx[r1 + ia] as f64 * fx + gy[r1 + ia] as f64 * (fy - 1.0);
-        let n11 = gx[r1 + ib] as f64 * (fx - 1.0) + gy[r1 + ib] as f64 * (fy - 1.0);
+        // SAFETY: x < row.len() ≤ длина массивов cols; lo, hi < px; r0, r1 — начала
+        // строк решётки (check_row), значит r + lo/hi < px·py = длина gx и gy.
+        let (n00, n10, n01, n11, u) = unsafe {
+            let (ia, ib) = (at(&cols.lo, x) as usize, at(&cols.hi, x) as usize);
+            let fx = at(&cols.f, x);
+            (
+                at(gx, r0 + ia) as f64 * fx + at(gy, r0 + ia) as f64 * fy,
+                at(gx, r0 + ib) as f64 * (fx - 1.0) + at(gy, r0 + ib) as f64 * fy,
+                at(gx, r1 + ia) as f64 * fx + at(gy, r1 + ia) as f64 * (fy - 1.0),
+                at(gx, r1 + ib) as f64 * (fx - 1.0) + at(gy, r1 + ib) as f64 * (fy - 1.0),
+                at(&cols.u, x),
+            )
+        };
         let aa = n00 + u * (n10 - n00);
         let bb = n01 + u * (n11 - n01);
         put::<FIRST>(d, amp, ridge::<RIDGED>((aa + vv * (bb - aa)) * 1.4142136));
@@ -536,11 +586,15 @@ fn value_row<const FIRST: bool, const RIDGED: bool>(
     row: &mut [f32], l: &LatticeVal, cols: &Cols, r0: usize, r1: usize, _fy: f64, vv: f64, amp: f64,
 ) {
     let val = &l.v[..];
+    check_row(row.len(), cols, l.px, l.py, r0, r1);
     for (x, d) in row.iter_mut().enumerate() {
-        let (ia, ib) = (cols.lo[x] as usize, cols.hi[x] as usize);
-        let u = cols.u[x];
-        let aa = val[r0 + ia] as f64 + u * (val[r0 + ib] as f64 - val[r0 + ia] as f64);
-        let bb = val[r1 + ia] as f64 + u * (val[r1 + ib] as f64 - val[r1 + ia] as f64);
+        // SAFETY: как в perlin_row — индексы ограничены check_row и построением Cols.
+        let (v00, v10, v01, v11, u) = unsafe {
+            let (ia, ib) = (at(&cols.lo, x) as usize, at(&cols.hi, x) as usize);
+            (at(val, r0 + ia) as f64, at(val, r0 + ib) as f64, at(val, r1 + ia) as f64, at(val, r1 + ib) as f64, at(&cols.u, x))
+        };
+        let aa = v00 + u * (v10 - v00);
+        let bb = v01 + u * (v11 - v01);
         // Множитель у Value равен 1 — умножение на него точное, его можно не делать.
         put::<FIRST>(d, amp, ridge::<RIDGED>(aa + vv * (bb - aa)));
     }
@@ -616,6 +670,9 @@ pub fn build_field(n: &Noise, w: usize, h: usize) -> Result<Field, FieldError> {
             NoiseType::Worley => {
                 let pts = worley_points(px, py, seed_o, n.worley_jitter)?;
                 let mode = n.worley_mode;
+                if let Some(wp) = &warp {
+                    assert!(wp.bx.len() == w * h && wp.by.len() == w * h, "поле искажения не совпадает с плиткой");
+                }
                 par_rows(&mut out, w, h, |y0, band| {
                     for (yy, row) in band.chunks_mut(w).enumerate() {
                         let y = y0 + yy;
@@ -624,8 +681,10 @@ pub fn build_field(n: &Noise, w: usize, h: usize) -> Result<Field, FieldError> {
                         for (x, d) in row.iter_mut().enumerate() {
                             let (mut xx, mut yv) = (x as f64 * sx, yf);
                             if let Some(wp) = &warp {
-                                xx += wp.bx[r + x] as f64 * wax;
-                                yv += wp.by[r + x] as f64 * way;
+                                // SAFETY: y < h, x < w, поле искажения ровно w·h (assert выше).
+                                let (bx, by) = unsafe { (at(&wp.bx, r + x) as f64, at(&wp.by, r + x) as f64) };
+                                xx += bx * wax;
+                                yv += by * way;
                             }
                             put_rt(d, first, amp, worley_sample(&pts, xx, yv, mode));
                         }

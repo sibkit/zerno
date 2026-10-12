@@ -22,7 +22,7 @@
   },
   "channels": [
     {
-      "id": "c28",
+      "id": "c26",
       "name": "Сетка",
       "enabled": true,
       "blend": "normal",
@@ -63,7 +63,7 @@
       }
     },
     {
-      "id": "c29",
+      "id": "c27",
       "name": "Потёртости",
       "enabled": true,
       "blend": "overlay",
@@ -104,7 +104,7 @@
       }
     },
     {
-      "id": "c30",
+      "id": "c28",
       "name": "Зерно",
       "enabled": true,
       "blend": "normal",

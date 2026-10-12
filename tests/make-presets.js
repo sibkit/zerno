@@ -105,12 +105,6 @@ const PRESETS = [
   grain(57, 3, 0.05, 60, 0.3)
 ])],
 
-['09-tuman.json', doc('туман · светлый фон', 512, 512, c(232, 0.022, 0.965, 1), [
-  ch('Дымка', nz({ sizeX: 300, sizeY: 300, seed: 12, octaves: 3, gain: 0.55, warpAmount: 54, warpSize: 300 }),
-     c(232, 0.12, 0.52, 0.055), c(232, 0.05, 1, 0)),
-  grain(13, 4, 0.028, 232, 0.25)
-])],
-
 ['10-stalnaya-setka.json', doc('стальная сетка', 384, 384, c(220, 0.035, 0.28, 1), [
   ch('Сетка', nz({ type: 'worley', sizeX: 15, sizeY: 15, seed: 700, octaves: 1, worleyMode: 'f2f1', worleyJitter: 0, shape: { gamma: 0.5, contrast: 0.35, invert: true } }),
      c(220, 0.05, 0.14, 0.55), c(220, 0.08, 0.62, 0.16)),
