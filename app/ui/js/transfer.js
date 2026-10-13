@@ -25,7 +25,7 @@ function inLibrary(path){
 
 async function afterSave(path){
   markSaved(path);
-  toast('Сохранено: '+path);
+  toast(tr('file.saved',{path:path}));
   if(inLibrary(path)) await reloadLibrary();
 }
 
@@ -38,29 +38,30 @@ async function saveDoc(){
 }
 
 async function saveDocAs(){
-  const path=await call('doc_save_as',{text:docText(),suggested:safeName(doc.name)});
+  const path=await call('doc_save_as',{text:docText(),suggested:safeName(doc.name),title:tr('dlg.save'),filter:tr('dlg.filter')});
   if(path) await afterSave(path);
 }
 
 function loadOpened(o){
   const res=parsePresetFiles([{name:o.name,text:o.text}]);
-  if(res.skipped.length) throw new Error('«'+o.name+'» — не пресет ЗЕРНО (нет "format": "'+FORMAT+'").');
-  if(res.errors.length) throw new Error(res.errors.join('\n'));
+  if(res.skipped.length) throw new ZErr('doc.notPreset',{name:o.name,format:FORMAT});
+  if(res.errors.length) throw res.errors[0];
   openDocument(res.items[0].doc,o.path,true);
-  toast('Открыт: '+o.path+'  ·  Ctrl+Z вернёт прежний документ');
+  toast(tr('doc.opened',{name:o.path}));
 }
 
 async function openFile(){
-  const o=await call('doc_open');
+  const o=await call('doc_open',{title:tr('dlg.open'),filter:tr('dlg.filter')});
   if(o) loadOpened(o);
 }
 
 async function exportPng(){
   const r=await call('export_png',{
     request:{jobs:[{width:doc.tile.width,height:doc.tile.height,doc:serializeDoc(doc)}]},
-    suggested:safeName(doc.name)
+    suggested:safeName(doc.name),
+    title:tr('dlg.exportPng')
   });
-  if(r) toast('PNG сохранён: '+r.path+'  ·  '+(r.bytes/1024).toFixed(1)+' КБ');
+  if(r) toast(tr('export.saved',{fmt:'PNG',path:r.path,kb:(r.bytes/1024).toFixed(1)}));
 }
 
 /** Один тайл текущего документа в canvas. */
@@ -74,22 +75,22 @@ async function exportWebp(){
   const cv=await renderCurrent();
   const blob=await new Promise(res=>cv.toBlob(res,'image/webp',doc.render.webpQuality));
   if(!blob||blob.type!=='image/webp')
-    throw new Error('WebView не закодировал WebP (получено: '+(blob?blob.type:'ничего')+'). Сохраните PNG.');
+    throw new ZErr('export.webpFail',{got:blob?blob.type:'null'});
   const bytes=new Uint8Array(await blob.arrayBuffer());
-  const r=await call('export_bytes',bytes,{headers:{'x-ext':'webp','x-name':encodeURIComponent(safeName(doc.name))}});
-  if(r) toast('WEBP сохранён: '+r.path+'  ·  '+(r.bytes/1024).toFixed(1)+' КБ');
+  const r=await call('export_bytes',bytes,{headers:{'x-ext':'webp','x-name':encodeURIComponent(safeName(doc.name)),'x-title':encodeURIComponent(tr('dlg.exportWebp'))}});
+  if(r) toast(tr('export.saved',{fmt:'WEBP',path:r.path,kb:(r.bytes/1024).toFixed(1)}));
 }
 
 async function copyCss(){
   const cv=await renderCurrent();
   const url=cv.toDataURL('image/png');
-  const css='/* '+doc.name+' — плитка '+doc.tile.width+'×'+doc.tile.height+' */\n'+
+  const css='/* '+tr('css.comment',{name:doc.name,w:doc.tile.width,h:doc.tile.height})+' */\n'+
     'background-color:'+okhslToCss(doc.background)+';\n'+
     'background-image:url("'+url+'");\n'+
     'background-repeat:repeat;\n'+
     'background-size:'+doc.tile.width+'px '+doc.tile.height+'px;';
   await navigator.clipboard.writeText(css);
-  toast('CSS скопирован в буфер ('+(css.length/1024).toFixed(1)+' КБ вместе с data-URI).');
+  toast(tr('css.copied',{kb:(css.length/1024).toFixed(1)}));
 }
 
 /** Файлы, брошенные на окно: открывается первый *.json, о прочих — сообщение. */
@@ -102,10 +103,10 @@ function initDrop(){
     if(p.type!=='drop') return;
     const json=p.paths.filter(x=>/\.json$/i.test(x));
     const other=p.paths.filter(x=>!/\.json$/i.test(x));
-    if(other.length) toast('Пропущено (ожидается *.json): '+other.join(', '),true);
-    if(json.length>1) toast('Брошено пресетов: '+json.length+'. Открыт первый: '+json[0],true);
+    if(other.length) toast(tr('drop.skipped',{list:other.join(', ')}),true);
+    if(json.length>1) toast(tr('drop.many',{n:json.length,first:json[0]}),true);
     if(json.length) guard(async()=>loadOpened(await call('doc_read',{path:json[0]})));
-  }).catch(e=>toast('Перетаскивание файлов недоступно: '+e,true));
+  }).catch(e=>toast(tr('drop.unavailable',{err:toErr(e).message}),true));
 }
 
 function initExport(){

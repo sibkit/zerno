@@ -28,4 +28,10 @@
   background:var(--acc);opacity:0;transition:opacity .15s;pointer-events:none}
 .dirty .dirty-dot{opacity:1}
 .file-name{font:400 var(--fs-s)/1.2 var(--sans);color:var(--ink-3);max-width:260px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+/* Путь обрезается слева — видно имя файла; фраза «не сохранён» — как обычно. */
+.file-name.path{direction:rtl}
+
+/* Язык интерфейса: список в духе кнопок панели. */
+.lang-sel{width:auto;max-width:118px;flex:none;font:500 var(--fs)/1 var(--sans);color:var(--ink-2);
+  padding:7px 8px;border-radius:var(--r)}

@@ -6,7 +6,10 @@ const { ROOT, coreCode } = require('../tests/load-app.js');
 const OUT = ROOT + '/presets';
 const code = coreCode();
 class ImageData { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); } }
-const M = new Function('ImageData', code + '\nreturn {validateDoc,serializeDoc,composeDoc,accToImageData,FORMAT,DOC_VERSION};')(ImageData);
+const M = new Function('ImageData', code + '\nreturn {validateDoc,serializeDoc,composeDoc,accToImageData,FORMAT,DOC_VERSION,setLang};')(ImageData);
+// Ошибки — ZErr {key, args}; текст собирается на выбранном языке. Инструмент
+// говорит по-русски, как и остальные проверки.
+M.setLang('ru');
 
 // ---- сокращения ----
 const c = (h, s, l, a) => ({ h, s, l, a });

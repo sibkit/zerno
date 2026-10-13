@@ -201,7 +201,7 @@ function okhslToHex(c){
 }
 function hexToOkhsl(hex){
   const m=/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
-  if(!m) throw new Error('Некорректный HEX: "'+hex+'". Ожидается #RGB или #RRGGBB.');
+  if(!m) throw new ZErr('color.badHex',{hex:hex});
   let s=m[1];
   if(s.length===3) s=s[0]+s[0]+s[1]+s[1]+s[2]+s[2];
   return srgbToOkhsl(parseInt(s.slice(0,2),16),parseInt(s.slice(2,4),16),parseInt(s.slice(4,6),16));

@@ -175,15 +175,14 @@ function gradStops(mk,n){
    OKHSL: родное пространство документа, так редактор работал всегда. */
 const COLOR_MODES={okhsl:'HSL',oklch:'LCH'};
 const OKLCH_C_MAX=0.33;   /* верх шкалы C: самая насыщенная точка гамута sRGB ≈ 0.322 */
-let colorMode=(function(){
+let colorMode='okhsl';
+/** При запуске, после выбора языка: неизвестный сохранённый режим — сообщение. */
+function initColorMode(){
   const v=localStorage.getItem('zerno.colorMode');
-  if(v===null) return 'okhsl';
-  if(!(v in COLOR_MODES)){
-    setTimeout(()=>toast('Сохранённый режим цвета «'+v+'» неизвестен — выбран HSL.',true),0);
-    return 'okhsl';
-  }
-  return v;
-})();
+  if(v===null) return;
+  if(!(v in COLOR_MODES)){ toast(tr('color.badMode',{mode:v}),true); return; }
+  colorMode=v;
+}
 function setColorMode(m){
   if(!(m in COLOR_MODES)) throw new Error('setColorMode: неизвестный режим "'+m+'"');
   if(m===colorMode) return;
@@ -248,7 +247,7 @@ function makeColorEditor(parent,key,title,c,onChange){
       const v=oklchToOkhsl(lch.L,lch.C,lch.H);
       c.h=v.h; c.s=v.s; c.l=v.l;
       if(lch.want>cmax+1e-6){
-        note.textContent='C снижена до границы гамута sRGB: '+fmt(lch.C,3)+' (задано '+fmt(lch.want,3)+').';
+        note.textContent=tr('color.clipped',{c:fmt(lch.C,3),want:fmt(lch.want,3)});
         note.style.display='';
       }else note.style.display='none';
       refresh(); onChange();

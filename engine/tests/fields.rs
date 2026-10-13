@@ -1,6 +1,7 @@
 //! Свойства полей: бесшовность, вырожденные решётки, предел октав, кэш.
 
 use zerno_engine::doc::{Noise, NoiseType, Shape, WorleyMode};
+use zerno_engine::msg::Msg;
 use zerno_engine::noise::{build_field, max_octaves_for, FieldError};
 use zerno_engine::render::{parse_jobs, Engine};
 
@@ -164,15 +165,32 @@ fn cache_reuses_fields_and_respects_the_limit() {
 #[test]
 fn render_request_errors_name_the_field() {
     let err = |v: serde_json::Value| parse_jobs(&v).err().unwrap();
-    assert_eq!(err(serde_json::json!({})), "запрос.jobs: поле отсутствует (обязательное)");
-    assert_eq!(err(serde_json::json!({"jobs":[]})), "запрос.jobs: пустой список");
+    // Форма запроса — дело нашего интерфейса: такие ошибки внутренние.
+    assert_eq!(err(serde_json::json!({})), Msg::internal("запрос.jobs: поле отсутствует (обязательное)"));
+    assert_eq!(err(serde_json::json!({"jobs":[]})), Msg::internal("запрос.jobs: пустой список"));
     assert_eq!(
         err(serde_json::json!({"jobs":[{"width":0,"height":8,"doc":doc_json(1)}]})),
-        "запрос.jobs[0]: размер 0×8 вне диапазона [1; 4096]"
+        Msg::internal("запрос.jobs[0]: размер 0×8 вне диапазона [1; 4096]")
     );
+    // Ошибка документа задачи — та же, что дал бы doc::parse, без приставок.
+    let mut d = doc_json(1);
+    d["channels"][0]["opacity"] = serde_json::json!(2);
+    assert_eq!(
+        err(serde_json::json!({"jobs":[{"width":8,"height":8,"doc":d}]})),
+        Msg::new("doc.range").arg("field", "channels[0].opacity").arg("value", 2).arg("min", 0).arg("max", 1)
+    );
+    let big = serde_json::json!({"width":4096,"height":4096,"doc":doc_json(1)});
+    assert_eq!(
+        err(serde_json::json!({"jobs":[big.clone(), big.clone(), big.clone(), big.clone(), big]})),
+        Msg::new("render.tooLarge")
+    );
+
     let mut d = doc_json(1);
     d["channels"][0]["noise"]["sizeX"] = serde_json::json!(1);
     let jobs = parse_jobs(&serde_json::json!({"jobs":[{"width":32,"height":32,"doc":d}]})).unwrap();
     let e = Engine::new(0).render(&jobs).err().unwrap();
-    assert!(e.starts_with("Канал «к0», тип «Перлин — облака»: размер пятна 1×16 px меньше 2 px"), "{e}");
+    assert_eq!(
+        e,
+        Msg::new("render.degenerate").arg("channel", "к0").arg("type", "perlin").arg("w", 1).arg("h", 16).arg("min", 2)
+    );
 }

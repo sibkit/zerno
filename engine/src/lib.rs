@@ -7,6 +7,7 @@
 pub mod color;
 pub mod composite;
 pub mod doc;
+pub mod msg;
 pub mod noise;
 pub mod render;
 

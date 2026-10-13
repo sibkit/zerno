@@ -64,3 +64,23 @@
   --sans:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
   --disp:'Unbounded','IBM Plex Sans',system-ui,sans-serif;
 }
+
+/* Китайский, японский, корейский: во вшитых IBM Plex и Unbounded нет иероглифов
+   и хангыля — их берёт системный шрифт Windows (так согласовано), латиница и
+   цифры остаются в Plex. Шрифт назван явно: иначе общие для китайского и
+   японского иероглифы взяли бы начертание чужого языка. */
+:root:lang(zh-CN){
+  --sans:'IBM Plex Sans','Microsoft YaHei UI','Microsoft YaHei',sans-serif;
+  --mono:'IBM Plex Mono','Microsoft YaHei UI','Microsoft YaHei',monospace;
+  --disp:'Unbounded','IBM Plex Sans','Microsoft YaHei UI','Microsoft YaHei',sans-serif;
+}
+:root:lang(ja){
+  --sans:'IBM Plex Sans','Yu Gothic UI','Meiryo UI',sans-serif;
+  --mono:'IBM Plex Mono','Yu Gothic UI','Meiryo UI',monospace;
+  --disp:'Unbounded','IBM Plex Sans','Yu Gothic UI','Meiryo UI',sans-serif;
+}
+:root:lang(ko){
+  --sans:'IBM Plex Sans','Malgun Gothic',sans-serif;
+  --mono:'IBM Plex Mono','Malgun Gothic',monospace;
+  --disp:'Unbounded','IBM Plex Sans','Malgun Gothic',sans-serif;
+}

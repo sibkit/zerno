@@ -5,14 +5,14 @@
 
 function tauri(){
   if(!window.__TAURI__||!window.__TAURI__.core)
-    throw new Error('Нет связи с приложением (window.__TAURI__): интерфейс открыт не в ЗЕРНО.');
+    throw new Error('No connection to the app (window.__TAURI__): the interface is not running inside ZERNO.');
   return window.__TAURI__;
 }
 
-/** Команда приложения. Ошибка Rust приходит строкой — превращаем в Error. */
+/** Команда приложения. Ошибка Rust приходит как {key, args} — превращаем в ZErr. */
 async function call(cmd,args,opts){
   try{ return await tauri().core.invoke(cmd,args,opts); }
-  catch(e){ throw e instanceof Error?e:new Error(String(e)); }
+  catch(e){ throw toErr(e); }
 }
 
 /** Ответ рендера — ZRN1: "ZRN1" | u32 N | (u32 w, u32 h)×N | RGBA подряд. */

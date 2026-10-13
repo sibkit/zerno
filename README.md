@@ -58,7 +58,9 @@ is mathematically identical to the left one and the bottom to the top.
   validation reports exactly which field is wrong instead of silently guessing.
 * Undo / redo, session restore, built-in help for every parameter.
 
-The interface is in Russian.
+**10 interface languages** — English, Русский, Deutsch, Français, Español, Português (Brasil),
+Українська, 简体中文, 日本語, 한국어. The app follows your system language and can be switched
+on the fly; the built-in help is translated too.
 
 ## Gallery
 
@@ -99,8 +101,8 @@ The exe is not code-signed, so SmartScreen may warn on first launch:
 
 ## Quick start
 
-1. Run `zerno.exe`. It opens with the "dark canvas" preset.
-2. In the right panel press **Папка…** (*Folder…*) and pick the `presets` folder from
+1. Run `zerno.exe`. It opens in your system language (switch it at the top right) with the "dark canvas" preset.
+2. In the right panel press **Folder…** and pick the `presets` folder from
    the zip — or any folder where you want to keep your own presets.
 3. Click a preset, then tweak the channels on the left. Every group has a **?** button
    that explains each slider.

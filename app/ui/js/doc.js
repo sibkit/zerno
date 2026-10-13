@@ -24,9 +24,11 @@ function factoryNoise(type){
     shape:{contrast:0,bias:0,gamma:1,invert:false,normalize:true}
   };
 }
-function factoryChannel(type){
+/** name — имя канала на языке интерфейса; doc.js о языках не знает. */
+function factoryChannel(type,name){
+  if(typeof name!=='string') throw new Error('factoryChannel: имя канала не передано');
   return {
-    id:uid(), name:NOISE_TYPES[type].label.split(' ')[0], enabled:true,
+    id:uid(), name:name, enabled:true,
     blend:'normal', opacity:1,
     noise:factoryNoise(type),
     low :{h:250,s:0.10,l:0.10,a:0.00},
@@ -34,46 +36,62 @@ function factoryChannel(type){
   };
 }
 
-/* ---------- строгая проверка (никаких молчаливых умолчаний) ---------- */
+/* ---------- строгая проверка (никаких молчаливых умолчаний) ----------
+   Ошибка — ZErr: ключ и параметры те же, что у движка (engine/src/doc.rs),
+   порядок проверок тот же. field — полный путь поля без корня ("" — сам
+   документ, "channels[0].noise"); текст собирает i18n.js при показе. */
+
+function jp(path,key){ return path?path+'.'+key:key; }
+function jsType(v){ return v===null?'null':Array.isArray(v)?'array':typeof v; }
+/* Число в параметре ошибки — так же, как его пишет движок (Display у f64 в
+   Rust): кратчайшие цифры без экспоненты. String() дал бы 1e-7 и 1e+21,
+   Rust — 0.0000001 и 1000000000000000000000. */
+function numArg(v){
+  const s=String(v);
+  if(s.indexOf('e')<0) return s;
+  const m=/^(-?)(\d)(?:\.(\d+))?e([+-]\d+)$/.exec(s);
+  if(!m) throw new Error('numArg: неожиданная запись числа "'+s+'"');
+  const digits=m[2]+(m[3]||''), e=Number(m[4]);
+  return e>0 ? m[1]+digits+'0'.repeat(e-digits.length+1) : m[1]+'0.'+'0'.repeat(-e-1)+digits;
+}
 
 function vObj(v,path){
-  if(v===null||typeof v!=='object'||Array.isArray(v)) throw new Error(path+': ожидается объект, получено '+jsType(v));
+  if(v===null||typeof v!=='object'||Array.isArray(v)) throw new ZErr('doc.notObject',{field:path,got:jsType(v)});
   return v;
 }
-function jsType(v){ return v===null?'null':Array.isArray(v)?'массив':typeof v; }
 function vHas(o,path,key){
-  if(!Object.prototype.hasOwnProperty.call(o,key)) throw new Error(path+'.'+key+': поле отсутствует (обязательное)');
+  if(!Object.prototype.hasOwnProperty.call(o,key)) throw new ZErr('doc.missing',{field:jp(path,key)});
 }
 function vNum(o,path,key,min,max){
   vHas(o,path,key);
   const v=o[key];
-  if(typeof v!=='number'||!isFinite(v)) throw new Error(path+'.'+key+': ожидается число, получено '+jsType(v));
-  if(v<min||v>max) throw new Error(path+'.'+key+': значение '+v+' вне диапазона ['+min+'; '+max+']');
+  if(typeof v!=='number'||!isFinite(v)) throw new ZErr('doc.notNumber',{field:jp(path,key),got:jsType(v)});
+  if(v<min||v>max) throw new ZErr('doc.range',{field:jp(path,key),value:numArg(v),min:numArg(min),max:numArg(max)});
   return v;
 }
 function vInt(o,path,key,min,max){
   const v=vNum(o,path,key,min,max);
-  if(!Number.isInteger(v)) throw new Error(path+'.'+key+': ожидается целое число, получено '+v);
+  if(!Number.isInteger(v)) throw new ZErr('doc.notInt',{field:jp(path,key),value:numArg(v)});
   return v;
 }
 function vBool(o,path,key){
   vHas(o,path,key);
-  if(typeof o[key]!=='boolean') throw new Error(path+'.'+key+': ожидается true/false, получено '+jsType(o[key]));
+  if(typeof o[key]!=='boolean') throw new ZErr('doc.notBool',{field:jp(path,key),got:jsType(o[key])});
   return o[key];
 }
 function vStr(o,path,key){
   vHas(o,path,key);
-  if(typeof o[key]!=='string') throw new Error(path+'.'+key+': ожидается строка, получено '+jsType(o[key]));
+  if(typeof o[key]!=='string') throw new ZErr('doc.notString',{field:jp(path,key),got:jsType(o[key])});
   return o[key];
 }
 function vEnum(o,path,key,allowed){
   const v=vStr(o,path,key);
-  if(!(v in allowed)) throw new Error(path+'.'+key+': недопустимое значение "'+v+'". Допустимо: '+Object.keys(allowed).join(', '));
+  if(allowed.indexOf(v)<0) throw new ZErr('doc.badEnum',{field:jp(path,key),value:v,allowed:allowed.join(', ')});
   return v;
 }
 function vKeys(o,path,allowed){
   for(const k of Object.keys(o)){
-    if(allowed.indexOf(k)<0) throw new Error(path+'.'+k+': неизвестное поле. Допустимы: '+allowed.join(', '));
+    if(allowed.indexOf(k)<0) throw new ZErr('doc.unknownField',{field:jp(path,k),allowed:allowed.join(', ')});
   }
 }
 
@@ -89,12 +107,12 @@ const NOISE_KEYS=['type','sizeX','sizeY','seed','octaves','gain','lacunarity','r
 function vNoise(raw,path){
   const o=vObj(raw,path);
   vKeys(o,path,NOISE_KEYS);
-  const sp=path+'.shape';
+  const sp=jp(path,'shape');
   vHas(o,path,'shape');
   const s=vObj(o.shape,sp);
   vKeys(s,sp,['contrast','bias','gamma','invert','normalize']);
   return {
-    type:vEnum(o,path,'type',NOISE_TYPES),
+    type:vEnum(o,path,'type',NOISE_TYPE_KEYS),
     sizeX:vNum(o,path,'sizeX',0.5,8192),
     sizeY:vNum(o,path,'sizeY',0.5,8192),
     seed:vInt(o,path,'seed',-2147483648,2147483647),
@@ -127,57 +145,60 @@ function vChannel(raw,path){
     enabled:vBool(o,path,'enabled'),
     blend:vEnum(o,path,'blend',BLEND_MODES),
     opacity:vNum(o,path,'opacity',0,1),
-    noise:vNoise(o.noise,path+'.noise'),
-    low:vColor(o.low,path+'.low'),
-    high:vColor(o.high,path+'.high')
+    noise:vNoise(o.noise,jp(path,'noise')),
+    low:vColor(o.low,jp(path,'low')),
+    high:vColor(o.high,jp(path,'high'))
   };
 }
 
-/** Разбор и проверка документа. Бросает исключение с точным адресом ошибки. */
+/** Разбор и проверка документа. Бросает ZErr с точным адресом ошибки;
+    src — откуда документ (имя файла или описание), попадает в args.file. */
 function validateDoc(raw,src){
-  const where=src?' [файл: '+src+']':'';
-  let o;
-  try{ o=vObj(raw,'документ'); }
-  catch(e){ throw new Error(e.message+where); }
-  try{
-    vKeys(o,'документ',['format','version','name','tile','render','background','channels']);
-    const fmt=vStr(o,'документ','format');
-    if(fmt!==FORMAT) throw new Error('документ.format: ожидается "'+FORMAT+'", получено "'+fmt+'"');
-    const ver=vInt(o,'документ','version',1,1000);
-    if(ver!==DOC_VERSION) throw new Error('документ.version: файл версии '+ver+', поддерживается только '+DOC_VERSION);
+  try{ return validateDocRaw(raw); }
+  catch(e){
+    if(src&&e instanceof ZErr) e.args.file=src;
+    throw e;
+  }
+}
+function validateDocRaw(raw){
+  const o=vObj(raw,'');
+  vKeys(o,'',['format','version','name','tile','render','background','channels']);
+  const fmt=vStr(o,'','format');
+  if(fmt!==FORMAT) throw new ZErr('doc.format',{field:'format',want:FORMAT,got:fmt});
+  const ver=vInt(o,'','version',1,1000);
+  if(ver!==DOC_VERSION) throw new ZErr('doc.version',{field:'version',got:String(ver),supported:String(DOC_VERSION)});
 
-    vHas(o,'документ','tile');
-    const t=vObj(o.tile,'документ.tile');
-    vKeys(t,'документ.tile',['width','height']);
+  vHas(o,'','tile');
+  const t=vObj(o.tile,'tile');
+  vKeys(t,'tile',['width','height']);
 
-    vHas(o,'документ','render');
-    const r=vObj(o.render,'документ.render');
-    vKeys(r,'документ.render',['stopMix','dither','webpQuality']);
-    vHas(r,'документ.render','dither');
-    const dz=vObj(r.dither,'документ.render.dither');
-    vKeys(dz,'документ.render.dither',['mode','amount']);
+  vHas(o,'','render');
+  const r=vObj(o.render,'render');
+  vKeys(r,'render',['stopMix','dither','webpQuality']);
+  vHas(r,'render','dither');
+  const dz=vObj(r.dither,'render.dither');
+  vKeys(dz,'render.dither',['mode','amount']);
 
-    vHas(o,'документ','background');
-    vHas(o,'документ','channels');
-    if(!Array.isArray(o.channels)) throw new Error('документ.channels: ожидается массив, получено '+jsType(o.channels));
+  vHas(o,'','background');
+  vHas(o,'','channels');
+  if(!Array.isArray(o.channels)) throw new ZErr('doc.notArray',{field:'channels',got:jsType(o.channels)});
 
-    const doc={
-      format:FORMAT, version:DOC_VERSION,
-      name:vStr(o,'документ','name'),
-      tile:{width:vInt(t,'документ.tile','width',TILE_MIN,TILE_MAX),height:vInt(t,'документ.tile','height',TILE_MIN,TILE_MAX)},
-      render:{
-        stopMix:vEnum(r,'документ.render','stopMix',STOP_MIX),
-        dither:{mode:vEnum(dz,'документ.render.dither','mode',DITHER_MODES),
-                amount:vNum(dz,'документ.render.dither','amount',0,4)},
-        webpQuality:vNum(r,'документ.render','webpQuality',0,1)
-      },
-      background:vColor(o.background,'документ.background'),
-      channels:o.channels.map((c,i)=>vChannel(c,'документ.channels['+i+']'))
-    };
-    const seen=new Set();
-    for(const c of doc.channels){ if(seen.has(c.id)) c.id=uid(); seen.add(c.id); }
-    return doc;
-  }catch(e){ throw new Error(e.message+where); }
+  const doc={
+    format:FORMAT, version:DOC_VERSION,
+    name:vStr(o,'','name'),
+    tile:{width:vInt(t,'tile','width',TILE_MIN,TILE_MAX),height:vInt(t,'tile','height',TILE_MIN,TILE_MAX)},
+    render:{
+      stopMix:vEnum(r,'render','stopMix',STOP_MIX),
+      dither:{mode:vEnum(dz,'render.dither','mode',DITHER_MODES),
+              amount:vNum(dz,'render.dither','amount',0,4)},
+      webpQuality:vNum(r,'render','webpQuality',0,1)
+    },
+    background:vColor(o.background,'background'),
+    channels:o.channels.map((c,i)=>vChannel(c,'channels['+i+']'))
+  };
+  const seen=new Set();
+  for(const c of doc.channels){ if(seen.has(c.id)) c.id=uid(); seen.add(c.id); }
+  return doc;
 }
 
 function serializeDoc(doc){

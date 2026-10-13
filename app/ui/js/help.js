@@ -1,7 +1,7 @@
 "use strict";
-/* ЗЕРНО · справка: одно окно, разделы — <article data-topic data-title> в
-   index.html. Значок «?» у группы открывает её раздел, F1 и «?» в верхней
-   панели — «Начало». Зависит от ui-kit.js (el, $). */
+/* ЗЕРНО · справка: одно окно, разделы — <article data-topic data-title> из
+   словаря языка (i18n/<код>.js, поле help). Значок «?» у группы открывает её раздел, F1 и «?» в верхней
+   панели — «Начало». Зависит от i18n.js и ui-kit.js (el, $). */
 
 function helpArticle(topic){
   const a=$('helpBody').querySelector(':scope>article[data-topic="'+topic+'"]');
@@ -27,27 +27,34 @@ function helpBtn(topic){
   return b;
 }
 
-function initHelp(){
+/** Статьи и оглавление — из словаря текущего языка; зовётся и при смене языка. */
+function renderHelp(){
   const body=$('helpBody'), nav=$('helpNav');
+  body.innerHTML=LANGS[lang].help;
+  nav.innerHTML='';
   for(const a of body.children){
     if(a.tagName!=='ARTICLE'||!a.dataset.topic||!a.dataset.title)
-      throw new Error('Справка: в #helpBody допустимы только <article data-topic data-title>');
+      throw new Error('Справка ('+lang+'): допустимы только <article data-topic data-title>');
     const b=el('button',null,a.dataset.title);
     b.dataset.topic=a.dataset.topic;
     b.addEventListener('click',()=>openHelp(a.dataset.topic));
     nav.appendChild(b);
   }
-  /* ссылки между разделами и статичные значки — проверяются при запуске,
-     чтобы битая ссылка не всплыла только по клику */
+  /* ссылки между разделами проверяются сразу, чтобы битая ссылка не всплыла
+     только по клику */
   for(const g of body.querySelectorAll('[data-go]')) helpArticle(g.dataset.go);
-  body.addEventListener('click',e=>{
+  for(const b of document.querySelectorAll('button[data-help]')) helpArticle(b.dataset.help);
+  $('help').hidden=true;
+}
+
+function initHelp(){
+  renderHelp();
+  $('helpBody').addEventListener('click',e=>{
     const g=e.target.closest('[data-go]');
     if(g) openHelp(g.dataset.go);
   });
-  for(const b of document.querySelectorAll('button[data-help]')){
-    helpArticle(b.dataset.help);
+  for(const b of document.querySelectorAll('button[data-help]'))
     b.addEventListener('click',e=>{ e.stopPropagation(); openHelp(b.dataset.help); });
-  }
   $('helpClose').addEventListener('click',closeHelp);
   $('help').addEventListener('click',e=>{ if(e.target===$('help')) closeHelp(); });
   document.addEventListener('keydown',e=>{

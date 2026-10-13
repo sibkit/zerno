@@ -20,7 +20,7 @@ function setState(kind,txt){
 const pump={busy:false,dirty:false};
 function scheduleRender(){
   pump.dirty=true;
-  setState('busy','рендер');
+  setState('busy',tr('st.busy'));
   if(!pump.busy) runPump();
 }
 async function runPump(){
@@ -59,8 +59,8 @@ async function runRender(){
       ids.push(ch.id);
     }
   }catch(e){
-    setState('err','ошибка');
-    toast('Ошибка подготовки задания: '+e.message,true);
+    setState('err',tr('st.error'));
+    toast(tr('render.prepFail',{err:e.message}),true);
     return;
   }
 
@@ -68,8 +68,8 @@ async function runRender(){
   try{
     res=await renderTiles(jobs);
   }catch(e){
-    setState('err','ошибка');
-    toast('Ошибка рендера: '+e.message,true);
+    setState('err',tr('st.error'));
+    toast(tr('render.fail',{err:e.message}),true);
     return;
   }
 
@@ -80,12 +80,12 @@ async function runRender(){
     if(r&&res[i+1]) tileInto(r.thumb,res[i+1]);
   }
   try{ updateCardMeta(); }
-  catch(e){ toast('Ошибка подписей каналов: '+e.message,true); }
+  catch(e){ toast(tr('render.metaFail',{err:e.message}),true); }
 
-  $('stMs').textContent=(performance.now()-t0).toFixed(0)+' мс';
+  $('stMs').textContent=tr('unit.ms',{v:(performance.now()-t0).toFixed(0)});
   $('stTile').textContent=doc.tile.width+'×'+doc.tile.height+' px';
   $('stCh').textContent=doc.channels.filter(c=>c.enabled).length+' / '+doc.channels.length;
-  if(!pump.dirty) setState('','готов');
+  if(!pump.dirty) setState('',tr('st.ready'));
 }
 
 function updateCardMeta(){
@@ -99,12 +99,11 @@ function updateCardMeta(){
     const cap=info.octaves?maxOctavesFor(n,W,H):1;
     const used=info.octaves?Math.min(n.octaves,cap):1;
     r.meta.textContent=n.type+' · '+fmt(n.sizeX,1)+'×'+fmt(n.sizeY,1)+' px'+
-      (info.octaves?' · '+used+' окт':'')+
-      ' · '+BLEND_MODES[ch.blend].toLowerCase()+' '+Math.round(ch.opacity*100)+'%';
+      (info.octaves?' · '+tr('meta.octaves',{n:used}):'')+
+      ' · '+tr('blend.'+ch.blend)+' '+Math.round(ch.opacity*100)+'%';
     if(info.octaves&&n.octaves>cap){
       r.warn.style.display='';
-      r.warn.textContent='Октавы ограничены до '+cap+': на плитке '+W+'×'+H+
-        ' ячейка следующей октавы была бы мельче пикселя.';
+      r.warn.textContent=tr('warn.octaves',{cap:cap,w:W,h:H});
     }else{
       r.warn.style.display='none';
     }

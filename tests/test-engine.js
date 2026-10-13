@@ -11,9 +11,14 @@ const fn = new Function('ImageData', code + '\nreturn {' + [
   'linearSrgbToOklab','srgbTransfer','srgbTransferInv','lin2srgb',
   'latticeGrad','latticeVal','perlinSample','valueSample','worleyPoints','worleySample',
   'buildField','composeDoc','accToImageData','validateDoc','serializeDoc','NOISE_TYPES',
-  'buildStopLut','shapeValue','hash2i','maxOctavesFor','FORMAT','DOC_VERSION','blendCh','BLEND_ID'
+  'buildStopLut','shapeValue','hash2i','maxOctavesFor','FORMAT','DOC_VERSION','blendCh','BLEND_ID',
+  'ZErr','setLang','tr'
 ].join(',') + '};');
 const M = fn(ImageData);
+// Ошибки для пользователя — ZErr {key, args}, текст собирается на выбранном
+// языке. Проверки сверяют ключ и параметры, а русский текст — там, где он
+// что-то добавляет (сборка сообщения: корневое слово, имя типа, файл).
+M.setLang('ru');
 
 let fails = 0, checks = 0;
 function ok(name, cond, extra) {
@@ -28,6 +33,31 @@ function throws(name, f, needle) {
     if (needle && err.message.indexOf(needle) < 0) { fails++; console.log('  ✗ ' + name + ' → "' + err.message + '" не содержит "' + needle + '"'); }
     else console.log('  ✓ ' + name + '  (' + err.message.slice(0, 72) + ')');
   }
+}
+/** Параметры с упорядоченными ключами — для сравнения «ровно эти». */
+function normArgs(o) {
+  return JSON.stringify(Object.keys(o).sort().reduce((r, k) => (r[k] = o[k], r), {}));
+}
+/** Ошибка для пользователя: ZErr ровно с этим ключом и ровно этими параметрами;
+    ruNeedle — подстрока русского текста (проверка сборки сообщения). */
+function throwsErr(name, f, key, args, ruNeedle) {
+  checks++;
+  let err = null;
+  try { f(); } catch (e) { err = e; }
+  if (err === null) { fails++; console.log('  ✗ ' + name + ' → исключение не брошено'); return; }
+  const why = [];
+  if (!(err instanceof M.ZErr)) why.push('не ZErr: ' + err.message);
+  else {
+    if (err.key !== key) why.push('ключ ' + err.key + ' вместо ' + key);
+    if (normArgs(err.args) !== normArgs(args)) why.push('параметры ' + JSON.stringify(err.args) + ' вместо ' + JSON.stringify(args));
+    if (ruNeedle !== undefined) {
+      M.setLang('ru');
+      const t = err.message;
+      if (t.indexOf(ruNeedle) < 0) why.push('текст "' + t + '" не содержит "' + ruNeedle + '"');
+    }
+  }
+  if (why.length) { fails++; console.log('  ✗ ' + name + ' → ' + why.join('; ')); }
+  else console.log('  ✓ ' + name + '  (' + err.key + ': ' + err.message.slice(0, 72) + ')');
 }
 
 // ---------------------------------------------------------------- 1. цвет
@@ -255,18 +285,34 @@ console.log('\n[6] Режимы смешивания');
 console.log('\n[7] Строгая валидация (никаких молчаливых умолчаний)');
 {
   const clone = () => JSON.parse(JSON.stringify(raw));
-  throws('нет поля tile.height', () => { const d = clone(); delete d.tile.height; M.validateDoc(d); }, 'поле отсутствует');
-  throws('нет shape.gamma', () => { const d = clone(); delete d.channels[0].noise.shape.gamma; M.validateDoc(d); }, 'shape.gamma');
-  throws('лишнее поле', () => { const d = clone(); d.channels[0].noise.wat = 1; M.validateDoc(d); }, 'неизвестное поле');
-  throws('значение вне диапазона', () => { const d = clone(); d.background.h = 400; M.validateDoc(d); }, 'вне диапазона');
-  throws('не тот тип', () => { const d = clone(); d.channels[0].enabled = 'да'; M.validateDoc(d); }, 'true/false');
-  throws('неизвестный тип шума', () => { const d = clone(); d.channels[0].noise.type = 'simplex'; M.validateDoc(d); }, 'недопустимое значение');
-  throws('неизвестный режим смешивания', () => { const d = clone(); d.channels[0].blend = 'burn'; M.validateDoc(d); }, 'недопустимое значение');
-  throws('чужой format', () => { const d = clone(); d.format = 'other'; M.validateDoc(d); }, 'format');
-  throws('другая версия', () => { const d = clone(); d.version = 2; M.validateDoc(d); }, 'версии 2');
-  throws('дробные октавы', () => { const d = clone(); d.channels[0].noise.octaves = 2.5; M.validateDoc(d); }, 'целое');
-  throws('channels не массив', () => { const d = clone(); d.channels = {}; M.validateDoc(d); }, 'массив');
-  throws('имя файла попадает в сообщение', () => { const d = clone(); delete d.name; M.validateDoc(d, 'x.json'); }, 'x.json');
+  const NOISE_ALLOWED = 'type, sizeX, sizeY, seed, octaves, gain, lacunarity, ridged, warpAmount, warpSize, worleyMode, worleyJitter, grainHp, shape';
+  const BLEND_ALLOWED = 'normal, multiply, screen, overlay, hard-light, soft-light, add, subtract, darken, lighten, difference';
+  throwsErr('нет поля tile.height', () => { const d = clone(); delete d.tile.height; M.validateDoc(d); },
+    'doc.missing', { field: 'tile.height' }, 'документ.tile.height: поле отсутствует');
+  throwsErr('нет shape.gamma', () => { const d = clone(); delete d.channels[0].noise.shape.gamma; M.validateDoc(d); },
+    'doc.missing', { field: 'channels[0].noise.shape.gamma' }, 'документ.channels[0].noise.shape.gamma');
+  throwsErr('лишнее поле', () => { const d = clone(); d.channels[0].noise.wat = 1; M.validateDoc(d); },
+    'doc.unknownField', { field: 'channels[0].noise.wat', allowed: NOISE_ALLOWED }, 'неизвестное поле');
+  throwsErr('значение вне диапазона', () => { const d = clone(); d.background.h = 400; M.validateDoc(d); },
+    'doc.range', { field: 'background.h', value: '400', min: '0', max: '360' }, 'значение 400 вне диапазона [0; 360]');
+  throwsErr('не тот тип', () => { const d = clone(); d.channels[0].enabled = 'да'; M.validateDoc(d); },
+    'doc.notBool', { field: 'channels[0].enabled', got: 'string' }, 'true/false');
+  throwsErr('неизвестный тип шума', () => { const d = clone(); d.channels[0].noise.type = 'simplex'; M.validateDoc(d); },
+    'doc.badEnum', { field: 'channels[0].noise.type', value: 'simplex', allowed: 'perlin, value, worley, grain' }, 'недопустимое значение');
+  throwsErr('неизвестный режим смешивания', () => { const d = clone(); d.channels[0].blend = 'burn'; M.validateDoc(d); },
+    'doc.badEnum', { field: 'channels[0].blend', value: 'burn', allowed: BLEND_ALLOWED });
+  throwsErr('чужой format', () => { const d = clone(); d.format = 'other'; M.validateDoc(d); },
+    'doc.format', { field: 'format', want: M.FORMAT, got: 'other' }, 'документ.format');
+  throwsErr('другая версия', () => { const d = clone(); d.version = 2; M.validateDoc(d); },
+    'doc.version', { field: 'version', got: '2', supported: String(M.DOC_VERSION) }, 'версии 2');
+  throwsErr('дробные октавы', () => { const d = clone(); d.channels[0].noise.octaves = 2.5; M.validateDoc(d); },
+    'doc.notInt', { field: 'channels[0].noise.octaves', value: '2.5' }, 'целое');
+  throwsErr('channels не массив', () => { const d = clone(); d.channels = {}; M.validateDoc(d); },
+    'doc.notArray', { field: 'channels', got: 'object' }, 'массив');
+  throwsErr('корень — не объект', () => M.validateDoc([]),
+    'doc.notObject', { field: '', got: 'array' }, 'документ: ожидается объект');
+  throwsErr('имя файла попадает в сообщение', () => { const d = clone(); delete d.name; M.validateDoc(d, 'x.json'); },
+    'doc.missing', { field: 'name', file: 'x.json' }, '[файл: x.json]');
   ok('корректный документ проходит', !!M.validateDoc(clone()));
 
   const d1 = M.validateDoc(clone());
@@ -285,8 +331,10 @@ console.log('\n[8] Ограничение октав');
     (() => { const F = M.buildField(baseNoise({ sizeX: 64, sizeY: 64, octaves: 6 }), 256, 256); return F.max - F.min > 0.1; })());
   throws('неизвестный тип шума в buildField бросает',
     () => M.buildField(baseNoise({ type: 'simplex' }), 32, 32), 'неизвестный тип шума');
-  throws('вырожденная ячейка (<2 px) бросает',
-    () => M.buildField(baseNoise({ sizeX: 1, sizeY: 1 }), 64, 64), 'вырождается');
+  throwsErr('вырожденная ячейка (<2 px) бросает',
+    () => M.buildField(baseNoise({ sizeX: 1, sizeY: 1 }), 64, 64),
+    'render.degenerate', { channel: '', type: 'perlin', w: '1', h: '1', min: '2' },
+    'тип «Перлин — облака»: размер пятна 1×1 px меньше 2 px');
   ok('grain с зерном 1 px допустим', M.buildField(baseNoise({ type: 'grain', sizeX: 1, sizeY: 1, grainHp: 0 }), 64, 64).max > 0.9);
 
   // граничные размеры: нечётные стороны, минимальное пятно, крошечные плитки миниатюр
@@ -310,7 +358,7 @@ console.log('\n[9] Встроенный пресет и производител
   const dm = appCode().match(/function defaultDocRaw\(\)\{[\s\S]*?\n\}/);
   ok('defaultDocRaw найден в файле', !!dm);
   if (dm) {
-    const def = new Function('FORMAT', 'DOC_VERSION', dm[0] + '; return defaultDocRaw();')(M.FORMAT, M.DOC_VERSION);
+    const def = new Function('FORMAT', 'DOC_VERSION', 'tr', dm[0] + '; return defaultDocRaw();')(M.FORMAT, M.DOC_VERSION, M.tr);
     let d = null;
     try { d = M.validateDoc(def, 'встроенный'); ok('встроенный пресет проходит валидацию', true); }
     catch (err) { ok('встроенный пресет проходит валидацию', false, err.message); }

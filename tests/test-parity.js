@@ -12,7 +12,7 @@ if (!fs.existsSync(EXE)) {
 }
 
 class ImageData { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); } }
-const JS = new Function('ImageData', coreCode() + '\nreturn {composeDoc,accToImageData,validateDoc};')(ImageData);
+const JS = new Function('ImageData', coreCode() + '\nreturn {composeDoc,accToImageData,validateDoc,ZErr};')(ImageData);
 
 let fails = 0, checks = 0;
 function ok(name, cond, extra) {
@@ -102,18 +102,85 @@ console.log('\n[3] Байеровский дизеринг');
   ok('ordered совпадает', c.max <= 1, 'макс Δ=' + c.max);
 }
 
-console.log('\n[4] Ошибки проверки приходят с адресом поля');
+console.log('\n[4] Ошибки: Rust и эталон дают один ключ и одни параметры');
+/* Текст собирает интерфейс по {key, args}, поэтому паритет ошибок — это
+   совпадение ключа и всех параметров, а не похожая проза. */
 {
-  const bad = JSON.parse(JSON.stringify(docs[0].doc));
-  delete bad.channels[0].noise.shape.gamma;
-  const r = runRust([{ width: 64, height: 64, doc: bad }]);
-  ok('ошибка с точным адресом', !r.ok && /shape\.gamma/.test(r.error), r.ok ? 'отрендерено' : r.error);
+  /** Ошибка Rust из stderr: ровно один JSON {key, args}. */
+  function rustErr(doc) {
+    const r = runRust([{ width: 64, height: 64, doc }]);
+    if (r.ok) return null;
+    let m;
+    try { m = JSON.parse(r.error); }
+    catch (e) { throw new Error('stderr zerno-render — не JSON: ' + r.error); }
+    if (typeof m.key !== 'string' || !m.args || typeof m.args !== 'object' || Object.keys(m).length !== 2)
+      throw new Error('stderr zerno-render — не {key, args}: ' + r.error);
+    return m;
+  }
+  /** Ошибка эталона: проверка документа и композит, как делает рендер. */
+  function jsErr(doc) {
+    try { JS.composeDoc(JS.validateDoc(doc, null), 64, 64); return null; }
+    catch (e) {
+      if (!(e instanceof JS.ZErr)) throw new Error('эталон бросил не ZErr: ' + e.message);
+      return { key: e.key, args: e.args };
+    }
+  }
+  const norm = o => JSON.stringify(Object.keys(o).sort().reduce((r, k) => (r[k] = o[k], r), {}));
+  const mutate = f => { const d = JSON.parse(JSON.stringify(docs[0].doc)); f(d); return d; };
 
-  const deg = JSON.parse(JSON.stringify(docs[0].doc));
-  deg.channels[0].noise.sizeX = 1;
-  deg.channels[0].noise.sizeY = 1;
-  const r2 = runRust([{ width: 64, height: 64, doc: deg }]);
-  ok('вырожденная решётка объяснена', !r2.ok && /вырожда/.test(r2.error), r2.ok ? 'отрендерено' : r2.error.slice(0, 80));
+  const CASES = [
+    ['doc.missing',      'нет shape.gamma',            d => { delete d.channels[0].noise.shape.gamma; }],
+    ['doc.missing',      'нет tile.height',            d => { delete d.tile.height; }],
+    ['doc.missing',      'нет name',                   d => { delete d.name; }],
+    ['doc.unknownField', 'лишнее поле шума',           d => { d.channels[0].noise.wat = 1; }],
+    ['doc.unknownField', 'лишнее поле в render',       d => { d.render.extra = true; }],
+    ['doc.unknownField', 'лишнее поле в корне',        d => { d.extra = 1; }],
+    ['doc.range',        'оттенок 400',                d => { d.background.h = 400; }],
+    ['doc.range',        'непрозрачность 1.5',         d => { d.channels[0].opacity = 1.5; }],
+    ['doc.range',        'сид за пределом int32',      d => { d.channels[0].noise.seed = 2147483648; }],
+    ['doc.range',        'плитка 5 px',                d => { d.tile.width = 5; }],
+    ['doc.range',        'крошечное пятно 1e-7',       d => { d.channels[0].noise.sizeX = 1e-7; }],
+    ['doc.range',        'огромное искажение 1e21',    d => { d.channels[0].noise.warpAmount = 1e21; }],
+    ['doc.range',        'искажение −1.25e-9',         d => { d.channels[0].noise.warpAmount = -1.25e-9; }],
+    ['doc.range',        'пятно 1.2345e22',            d => { d.channels[0].noise.sizeY = 1.2345e22; }],
+    ['doc.notInt',       'октавы 1.0000001',           d => { d.channels[0].noise.octaves = 1.0000001; }],
+    ['doc.notInt',       'дробные октавы',             d => { d.channels[0].noise.octaves = 2.5; }],
+    ['doc.notInt',       'дробная ширина плитки',      d => { d.tile.width = 9.5; }],
+    ['doc.notNumber',    'gain строкой',               d => { d.channels[0].noise.gain = '0.5'; }],
+    ['doc.notNumber',    'gain = null',                d => { d.channels[0].noise.gain = null; }],
+    ['doc.notBool',      'enabled строкой',            d => { d.channels[0].enabled = 'да'; }],
+    ['doc.notString',    'id числом',                  d => { d.channels[0].id = 1; }],
+    ['doc.badEnum',      'тип шума simplex',           d => { d.channels[0].noise.type = 'simplex'; }],
+    ['doc.badEnum',      'режим смешивания burn',      d => { d.channels[0].blend = 'burn'; }],
+    ['doc.badEnum',      'режим Ворлея f3',            d => { d.channels[0].noise.worleyMode = 'f3'; }],
+    ['doc.badEnum',      'смешивание цветов hsv',      d => { d.render.stopMix = 'hsv'; }],
+    ['doc.badEnum',      'режим дизеринга x',          d => { d.render.dither.mode = 'x'; }],
+    ['doc.format',       'чужой format',               d => { d.format = 'other'; }],
+    ['doc.version',      'версия 2',                   d => { d.version = 2; }],
+    ['doc.notArray',     'channels — объект',          d => { d.channels = {}; }],
+    ['doc.notObject',    'канал — число',              d => { d.channels.push(5); }],
+    ['doc.notObject',    'цвет — массив',              d => { d.channels[0].low = []; }],
+    ['doc.notObject',    'shape — null',               d => { d.channels[0].noise.shape = null; }],
+  ];
+  for (const [key, name, f] of CASES) {
+    const doc = mutate(f);
+    const r = rustErr(doc), j = jsErr(doc);
+    const same = r !== null && j !== null && r.key === key && j.key === key && norm(r.args) === norm(j.args);
+    ok(key.padEnd(17) + name, same,
+       same ? JSON.stringify(r.args).slice(0, 70) : 'Rust ' + JSON.stringify(r) + ' / JS ' + JSON.stringify(j));
+  }
+
+  // Вырожденная решётка: эталон не знает имени канала (channel пуст), Rust
+  // подставляет его сам; остальные параметры — те же.
+  const deg = mutate(d => { d.channels[0].noise.sizeX = 1; d.channels[0].noise.sizeY = 1; });
+  const r = rustErr(deg), j = jsErr(deg);
+  const rest = o => { const c = Object.assign({}, o); delete c.channel; return norm(c); };
+  ok('render.degenerate  ключ и параметры совпали',
+     r !== null && j !== null && r.key === 'render.degenerate' && j.key === 'render.degenerate' &&
+     rest(r.args) === rest(j.args) && 'channel' in j.args && j.args.channel === '',
+     'Rust ' + JSON.stringify(r) + ' / JS ' + JSON.stringify(j));
+  ok('render.degenerate  Rust назвал канал', r !== null && r.args.channel === deg.channels[0].name,
+     r === null ? 'отрендерено' : r.args.channel);
 }
 
 console.log('\n[5] Пакетный запрос');

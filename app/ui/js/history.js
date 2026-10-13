@@ -63,7 +63,7 @@ function redo(){
 }
 
 function restoreCurrent(newDoc){
-  doc=validateDoc(JSON.parse(hist.cur.s),'история правок');
+  doc=validateDoc(JSON.parse(hist.cur.s),tr('src.history'));
   if(newDoc) for(const k of Object.keys(cardState)) delete cardState[k];
   $('docName').value=doc.name;
   buildLeft();
@@ -120,7 +120,10 @@ function updateDirty(){
   const f=boundFile();
   $('nameWrap').classList.toggle('dirty',isDirty());
   const fn=$('fileName');
-  fn.textContent=f?f.replace(/^.*[\\/]/,''):'не сохранён в файл';
+  /* Поле обрезается слева (direction: rtl): метки LRM не дают цифрам и
+     дефису в начале имени уехать в конец («08-dyuny.json» → «dyuny.json-08»). */
+  fn.textContent=f?'\u200E'+f.replace(/^.*[\\/]/,'')+'\u200E':tr('file.unsaved');
+  fn.classList.toggle('path',!!f);
 }
 
 /* ---------------- автосохранение сессии ---------------- */
@@ -134,7 +137,7 @@ function autosaveNow(){
   const f=boundFile();
   const data={doc:snapshot(),file:f,saved:f&&savedSnap[f]!==undefined?savedSnap[f]:null};
   try{ localStorage.setItem(SESSION_KEY,JSON.stringify(data)); }
-  catch(e){ toast('Автосохранение не удалось: '+e.message,true); }
+  catch(e){ toast(tr('session.autosaveFail',{err:e.message}),true); }
 }
 
 /** Прошлая сессия: {doc, file, saved} либо null, если её нет. Ошибка — исключение. */
@@ -143,7 +146,7 @@ function readSession(){
   if(raw===null) return null;
   const o=JSON.parse(raw);
   if(!o||typeof o.doc!=='string') throw new Error('запись сессии повреждена');
-  const d=validateDoc(JSON.parse(o.doc),'прошлая сессия');
+  const d=validateDoc(JSON.parse(o.doc),tr('src.session'));
   if(o.file!==null&&typeof o.file!=='string') throw new Error('запись сессии: file не строка');
   if(o.file&&typeof o.saved==='string') savedSnap[o.file]=o.saved;
   return {doc:d,file:o.file};

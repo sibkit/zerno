@@ -1,26 +1,26 @@
 "use strict";
 /* ЗЕРНО · словари модели документа и правило решётки.
    Общие для интерфейса и эталонного движка (tests/reference). Ни от чего не зависит.
-   Ключи словарей — допустимые значения в файле, порядок ключей — порядок в списках. */
+   Порядок значений — порядок в списках интерфейса. */
 
+/* Подписи — в словарях (noise.<тип>, blend.<режим> и т. д.), здесь только
+   допустимые значения и свойства типов. */
 const NOISE_TYPES={
-  perlin:{label:'Перлин — облака',  octaves:true,  ridged:true,  warp:true },
-  value: {label:'Value — мягкий',   octaves:true,  ridged:true,  warp:true },
-  worley:{label:'Ворлей — пятна',   octaves:true,  ridged:false, warp:true },
-  grain: {label:'Зерно — плёнка',   octaves:false, ridged:false, warp:false}
+  perlin:{octaves:true,  ridged:true,  warp:true },
+  value: {octaves:true,  ridged:true,  warp:true },
+  worley:{octaves:true,  ridged:false, warp:true },
+  grain: {octaves:false, ridged:false, warp:false}
 };
+const NOISE_TYPE_KEYS=Object.keys(NOISE_TYPES);
 
-const WORLEY_MODES={f1:'F1 — пятна',f2:'F2 — вторая точка',f2f1:'F2−F1 — ячейки/трещины'};
+const WORLEY_MODES=['f1','f2','f2f1'];
 
-const BLEND_MODES={
-  normal:'Обычный', multiply:'Умножение', screen:'Экран', overlay:'Перекрытие',
-  'hard-light':'Жёсткий свет','soft-light':'Мягкий свет', add:'Сложение',
-  subtract:'Вычитание', darken:'Замена тёмным', lighten:'Замена светлым', difference:'Разница'
-};
+const BLEND_MODES=['normal','multiply','screen','overlay','hard-light','soft-light','add',
+  'subtract','darken','lighten','difference'];
 
-const STOP_MIX={oklab:'OKLab (перцептивно)','srgb-linear':'Линейный sRGB (физично)'};
+const STOP_MIX=['oklab','srgb-linear'];
 
-const DITHER_MODES={tpdf:'TPDF (шумовой)',ordered:'Байер 8×8',off:'Выключен'};
+const DITHER_MODES=['tpdf','ordered','off'];
 
 /* Ячейка решётки мельче 2 px вырождается: у Перлина при ровно 1 px значение
    в узлах тождественно ноль. Поэтому это предел и для октав, и для базы. */

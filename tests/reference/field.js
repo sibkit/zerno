@@ -45,9 +45,7 @@ function buildField(n,W,H){
   }
 
   if(n.sizeX<MIN_CELL_PX||n.sizeY<MIN_CELL_PX)
-    throw new Error('Тип «'+NOISE_TYPES[n.type].label+'»: размер пятна '+n.sizeX+'×'+n.sizeY+
-      ' px меньше '+MIN_CELL_PX+' px — на такой решётке шум вырождается. '+
-      'Увеличьте размер пятна или возьмите тип «Зерно», он рассчитан на 1 px.');
+    throw new ZErr('render.degenerate',{channel:'',type:n.type,w:String(n.sizeX),h:String(n.sizeY),min:String(MIN_CELL_PX)});
   const [cx0,cy0]=baseCells(n,W,H);
   const octaves=NOISE_TYPES[n.type].octaves ? Math.min(n.octaves,maxOctavesFor(n,W,H)) : 1;
 

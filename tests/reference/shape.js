@@ -18,7 +18,7 @@ const LUT_N=2048;
 
 /** Таблица цвета канала: индекс = нормированное значение шума. */
 function buildStopLut(ch,mixSpace){
-  if(!(mixSpace in STOP_MIX)) throw new Error('Неизвестное пространство смешивания: "'+mixSpace+'"');
+  if(STOP_MIX.indexOf(mixSpace)<0) throw new Error('Неизвестное пространство смешивания: "'+mixSpace+'"');
   const lut=new Float32Array(LUT_N*4);
   const A=okhslToOklab(ch.low.h,ch.low.s,ch.low.l);
   const B=okhslToOklab(ch.high.h,ch.high.s,ch.high.l);

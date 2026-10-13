@@ -7,6 +7,7 @@
 use crate::color::SrLut;
 use crate::composite::{build_stop_lut, composite_band};
 use crate::doc::{self, Doc, Noise, NoiseType, WorleyMode};
+use crate::msg::Msg;
 use crate::noise::{build_field, Field, FieldError, MIN_CELL_PX};
 use rayon::prelude::*;
 use serde_json::Value;
@@ -183,7 +184,7 @@ impl Engine {
         self.cache.lock().expect("кэш полей отравлен паникой в другом потоке")
     }
 
-    fn field(&self, n: &Noise, w: usize, h: usize, channel: &str) -> Result<Arc<Field>, String> {
+    fn field(&self, n: &Noise, w: usize, h: usize, channel: &str) -> Result<Arc<Field>, Msg> {
         let key = FieldKey::new(n, w, h);
         if let Some(f) = self.lock_cache().get(&key) {
             return Ok(f);
@@ -191,19 +192,21 @@ impl Engine {
         // Строим без блокировки: поле считается всеми ядрами, другие запросы
         // тем временем могут брать готовые поля из кэша.
         let f = build_field(n, w, h).map_err(|e| match e {
-            FieldError::DegenerateCell => format!(
-                "Канал «{channel}», тип «{}»: размер пятна {}×{} px меньше {MIN_CELL_PX} px — на такой решётке шум вырождается. Увеличьте размер пятна или возьмите тип «Зерно», он рассчитан на 1 px.",
-                n.kind.label(),
-                n.size_x,
-                n.size_y
-            ),
-            FieldError::OutOfMemory => format!("Канал «{channel}»: не хватило памяти на поле шума {w}×{h}"),
+            // Тип — ключом документа (`perlin` …): название на нужном языке
+            // подставит интерфейс.
+            FieldError::DegenerateCell => Msg::new("render.degenerate")
+                .arg("channel", channel)
+                .arg("type", n.kind.key())
+                .arg("w", n.size_x)
+                .arg("h", n.size_y)
+                .arg("min", MIN_CELL_PX),
+            FieldError::OutOfMemory => Msg::new("render.fieldOom").arg("channel", channel).arg("w", w).arg("h", h),
         })?;
         Ok(self.lock_cache().put(key, f))
     }
 
     /// Считает пачку задач и возвращает буфер в формате ZRN1.
-    pub fn render(&self, jobs: &[Job]) -> Result<Vec<u8>, String> {
+    pub fn render(&self, jobs: &[Job]) -> Result<Vec<u8>, Msg> {
         // ---- этап 1: поля. Каждое строится всеми ядрами по полосам строк,
         // поэтому и одна большая плитка, и пачка мелких загружают процессор.
         let mut fields: Vec<Vec<Option<Arc<Field>>>> = Vec::with_capacity(jobs.len());
@@ -221,7 +224,7 @@ impl Engine {
         let header = 8 + jobs.len() * 8;
         let payload: usize = jobs.iter().map(|j| j.w * j.h * 4).sum();
         let mut buf = Vec::new();
-        buf.try_reserve_exact(header + payload).map_err(|_| "не хватило памяти на буфер ответа".to_string())?;
+        buf.try_reserve_exact(header + payload).map_err(|_| Msg::new("render.bufferOom"))?;
         buf.extend_from_slice(b"ZRN1");
         buf.extend_from_slice(&(jobs.len() as u32).to_le_bytes());
         for j in jobs {
@@ -256,42 +259,46 @@ impl Engine {
 
 // ============================ разбор пачки ============================
 
-/// `{"jobs":[{"width","height","doc"}]}` → задачи. Ошибки — с адресом поля.
-pub fn parse_jobs(root: &Value) -> Result<Vec<Job>, String> {
-    let o = root.as_object().ok_or("ожидается объект {\"jobs\":[...]}")?;
+/// `{"jobs":[{"width","height","doc"}]}` → задачи.
+///
+/// Форму запроса собирает наш же интерфейс, поэтому её нарушения — ошибки
+/// программиста (`Msg::internal`). Ошибка документа задачи уходит как есть,
+/// со своим ключом `doc.*` и адресом поля внутри документа.
+pub fn parse_jobs(root: &Value) -> Result<Vec<Job>, Msg> {
+    let o = root.as_object().ok_or_else(|| Msg::internal("ожидается объект {\"jobs\":[...]}"))?;
     let arr = match o.get("jobs") {
-        None => return Err("запрос.jobs: поле отсутствует (обязательное)".into()),
+        None => return Err(Msg::internal("запрос.jobs: поле отсутствует (обязательное)")),
         Some(Value::Array(a)) => a,
-        Some(_) => return Err("запрос.jobs: ожидается массив".into()),
+        Some(_) => return Err(Msg::internal("запрос.jobs: ожидается массив")),
     };
     if arr.is_empty() {
-        return Err("запрос.jobs: пустой список".into());
+        return Err(Msg::internal("запрос.jobs: пустой список"));
     }
     if arr.len() > MAX_JOBS {
-        return Err(format!("запрос.jobs: больше {MAX_JOBS} задач за раз не принимается"));
+        return Err(Msg::internal(format!("запрос.jobs: больше {MAX_JOBS} задач за раз не принимается")));
     }
     let mut jobs = Vec::with_capacity(arr.len());
     let mut total = 0usize;
     for (i, jv) in arr.iter().enumerate() {
         let path = format!("запрос.jobs[{i}]");
-        let jo = jv.as_object().ok_or_else(|| format!("{path}: ожидается объект"))?;
-        let side = |key: &str| -> Result<i64, String> {
+        let jo = jv.as_object().ok_or_else(|| Msg::internal(format!("{path}: ожидается объект")))?;
+        let side = |key: &str| -> Result<i64, Msg> {
             match jo.get(key) {
-                None => Err(format!("{path}.{key}: поле отсутствует")),
-                Some(v) => v.as_i64().ok_or_else(|| format!("{path}.{key}: ожидается целое число")),
+                None => Err(Msg::internal(format!("{path}.{key}: поле отсутствует"))),
+                Some(v) => v.as_i64().ok_or_else(|| Msg::internal(format!("{path}.{key}: ожидается целое число"))),
             }
         };
         let (w, h) = (side("width")?, side("height")?);
         if !(1..=MAX_SIDE).contains(&w) || !(1..=MAX_SIDE).contains(&h) {
-            return Err(format!("{path}: размер {w}×{h} вне диапазона [1; {MAX_SIDE}]"));
+            return Err(Msg::internal(format!("{path}: размер {w}×{h} вне диапазона [1; {MAX_SIDE}]")));
         }
-        let dv = jo.get("doc").ok_or_else(|| format!("{path}.doc: поле отсутствует"))?;
-        let d = doc::parse(dv).map_err(|e| format!("{path}.doc: {e}"))?;
+        let dv = jo.get("doc").ok_or_else(|| Msg::internal(format!("{path}.doc: поле отсутствует")))?;
+        let d = doc::parse(dv)?;
         total += (w * h) as usize;
         jobs.push(Job { doc: d, w: w as usize, h: h as usize });
     }
     if total > MAX_TOTAL_PX {
-        return Err("суммарная площадь задач слишком велика".into());
+        return Err(Msg::new("render.tooLarge"));
     }
     Ok(jobs)
 }

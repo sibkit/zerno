@@ -4894,7 +4894,7 @@ dependencies = [
 
 [[package]]
 name = "zerno"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "png 0.18.1",
  "serde",
@@ -4909,7 +4909,7 @@ dependencies = [
 
 [[package]]
 name = "zerno-engine"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "rayon",
  "serde_json",

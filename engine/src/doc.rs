@@ -2,10 +2,13 @@
 //!
 //! Правило то же, что в интерфейсе (app/ui/js/doc.js): никаких молчаливых
 //! умолчаний. Отсутствующее поле, лишнее поле, неверный тип или значение вне
-//! диапазона — ошибка с точным адресом. Порядок проверок и тексты сообщений
-//! совпадают с JS дословно: одна и та же ошибка выглядит одинаково, где бы её
-//! ни нашли.
+//! диапазона — ошибка с точным адресом. Ошибка — не текст, а `Msg`: ключ
+//! `doc.*` и аргументы (`field` — полный адрес поля без корня: `""` для самого
+//! документа, `tile`, `channels[0].noise.shape.gamma`). Порядок проверок,
+//! ключи и аргументы совпадают с JS дословно: одна и та же ошибка выглядит
+//! одинаково, где бы её ни нашли.
 
+use crate::msg::Msg;
 use serde_json::{Map, Value};
 
 pub const FORMAT: &str = "zerno-noise-tile";
@@ -49,13 +52,9 @@ impl NoiseType {
     pub fn has_ridged(self) -> bool {
         matches!(self, NoiseType::Perlin | NoiseType::Value)
     }
-    pub fn label(self) -> &'static str {
-        match self {
-            NoiseType::Perlin => "Перлин — облака",
-            NoiseType::Value => "Value — мягкий",
-            NoiseType::Worley => "Ворлей — пятна",
-            NoiseType::Grain => "Зерно — плёнка",
-        }
+    /// Имя типа в документе (`"perlin"` …) — им же ошибки называют тип.
+    pub fn key(self) -> &'static str {
+        Self::TABLE.iter().find(|(_, t)| *t == self).map(|(n, _)| *n).expect("каждый тип шума есть в NoiseType::TABLE")
     }
 }
 
@@ -167,28 +166,35 @@ pub struct Doc {
 
 // ============================ проверки ============================
 
-type R<T> = Result<T, String>;
+type R<T> = Result<T, Msg>;
 
+/// Тип значения словом JSON — аргумент `got` ошибок.
 fn js_type(v: &Value) -> &'static str {
     match v {
         Value::Null => "null",
         Value::Bool(_) => "boolean",
         Value::Number(_) => "number",
         Value::String(_) => "string",
-        Value::Array(_) => "массив",
+        Value::Array(_) => "array",
         Value::Object(_) => "object",
     }
+}
+
+/// Адрес вложенного поля. Корень — пустая строка, поэтому ключи верхнего
+/// уровня адресуются просто по имени: `tile`, а не `.tile`.
+fn join(path: &str, key: &str) -> String {
+    if path.is_empty() { key.to_string() } else { format!("{path}.{key}") }
 }
 
 fn v_obj<'a>(v: &'a Value, path: &str) -> R<&'a Map<String, Value>> {
     match v {
         Value::Object(o) => Ok(o),
-        _ => Err(format!("{path}: ожидается объект, получено {}", js_type(v))),
+        _ => Err(Msg::new("doc.notObject").arg("field", path).arg("got", js_type(v))),
     }
 }
 
 fn v_has<'a>(o: &'a Map<String, Value>, path: &str, key: &str) -> R<&'a Value> {
-    o.get(key).ok_or_else(|| format!("{path}.{key}: поле отсутствует (обязательное)"))
+    o.get(key).ok_or_else(|| Msg::new("doc.missing").arg("field", join(path, key)))
 }
 
 fn v_num(o: &Map<String, Value>, path: &str, key: &str, min: f64, max: f64) -> R<f64> {
@@ -198,9 +204,9 @@ fn v_num(o: &Map<String, Value>, path: &str, key: &str, min: f64, max: f64) -> R
         _ => None,
     }
     .filter(|n| n.is_finite())
-    .ok_or_else(|| format!("{path}.{key}: ожидается число, получено {}", js_type(v)))?;
+    .ok_or_else(|| Msg::new("doc.notNumber").arg("field", join(path, key)).arg("got", js_type(v)))?;
     if n < min || n > max {
-        return Err(format!("{path}.{key}: значение {n} вне диапазона [{min}; {max}]"));
+        return Err(Msg::new("doc.range").arg("field", join(path, key)).arg("value", n).arg("min", min).arg("max", max));
     }
     Ok(n)
 }
@@ -208,7 +214,7 @@ fn v_num(o: &Map<String, Value>, path: &str, key: &str, min: f64, max: f64) -> R
 fn v_int(o: &Map<String, Value>, path: &str, key: &str, min: f64, max: f64) -> R<i64> {
     let n = v_num(o, path, key, min, max)?;
     if n.floor() != n {
-        return Err(format!("{path}.{key}: ожидается целое число, получено {n}"));
+        return Err(Msg::new("doc.notInt").arg("field", join(path, key)).arg("value", n));
     }
     Ok(n as i64)
 }
@@ -216,14 +222,14 @@ fn v_int(o: &Map<String, Value>, path: &str, key: &str, min: f64, max: f64) -> R
 fn v_bool(o: &Map<String, Value>, path: &str, key: &str) -> R<bool> {
     match v_has(o, path, key)? {
         Value::Bool(b) => Ok(*b),
-        v => Err(format!("{path}.{key}: ожидается true/false, получено {}", js_type(v))),
+        v => Err(Msg::new("doc.notBool").arg("field", join(path, key)).arg("got", js_type(v))),
     }
 }
 
 fn v_str<'a>(o: &'a Map<String, Value>, path: &str, key: &str) -> R<&'a str> {
     match v_has(o, path, key)? {
         Value::String(s) => Ok(s),
-        v => Err(format!("{path}.{key}: ожидается строка, получено {}", js_type(v))),
+        v => Err(Msg::new("doc.notString").arg("field", join(path, key)).arg("got", js_type(v))),
     }
 }
 
@@ -233,7 +239,7 @@ fn v_enum<T: Copy>(o: &Map<String, Value>, path: &str, key: &str, table: &[(&str
         Some((_, t)) => Ok(*t),
         None => {
             let allowed: Vec<&str> = table.iter().map(|(n, _)| *n).collect();
-            Err(format!("{path}.{key}: недопустимое значение \"{s}\". Допустимо: {}", allowed.join(", ")))
+            Err(Msg::new("doc.badEnum").arg("field", join(path, key)).arg("value", s).arg("allowed", allowed.join(", ")))
         }
     }
 }
@@ -241,7 +247,7 @@ fn v_enum<T: Copy>(o: &Map<String, Value>, path: &str, key: &str, table: &[(&str
 fn v_keys(o: &Map<String, Value>, path: &str, allowed: &[&str]) -> R<()> {
     for k in o.keys() {
         if !allowed.contains(&k.as_str()) {
-            return Err(format!("{path}.{k}: неизвестное поле. Допустимы: {}", allowed.join(", ")));
+            return Err(Msg::new("doc.unknownField").arg("field", join(path, k)).arg("allowed", allowed.join(", ")));
         }
     }
     Ok(())
@@ -278,7 +284,7 @@ const NOISE_KEYS: &[&str] = &[
 fn v_noise(raw: &Value, path: &str) -> R<Noise> {
     let o = v_obj(raw, path)?;
     v_keys(o, path, NOISE_KEYS)?;
-    let sp = format!("{path}.shape");
+    let sp = join(path, "shape");
     let s = v_obj(v_has(o, path, "shape")?, &sp)?;
     v_keys(s, &sp, &["contrast", "bias", "gamma", "invert", "normalize"])?;
     Ok(Noise {
@@ -318,60 +324,61 @@ fn v_channel(raw: &Value, path: &str) -> R<Channel> {
         enabled: v_bool(o, path, "enabled")?,
         blend: v_enum(o, path, "blend", Blend::TABLE)?,
         opacity: v_num(o, path, "opacity", 0.0, 1.0)?,
-        noise: v_noise(noise, &format!("{path}.noise"))?,
-        low: v_color(low, &format!("{path}.low"))?,
-        high: v_color(high, &format!("{path}.high"))?,
+        noise: v_noise(noise, &join(path, "noise"))?,
+        low: v_color(low, &join(path, "low"))?,
+        high: v_color(high, &join(path, "high"))?,
     })
 }
 
-/// Разбор уже распарсенного JSON. Бросает ошибку с точным адресом поля.
+/// Разбор уже распарсенного JSON. Ошибка — с точным адресом поля.
 pub fn parse(raw: &Value) -> R<Doc> {
-    const D: &str = "документ";
+    // Корень — пустой адрес (см. join).
+    const D: &str = "";
     let o = v_obj(raw, D)?;
     v_keys(o, D, &["format", "version", "name", "tile", "render", "background", "channels"])?;
     let fmt = v_str(o, D, "format")?;
     if fmt != FORMAT {
-        return Err(format!("документ.format: ожидается \"{FORMAT}\", получено \"{fmt}\""));
+        return Err(Msg::new("doc.format").arg("field", "format").arg("want", FORMAT).arg("got", fmt));
     }
     let ver = v_int(o, D, "version", 1.0, 1000.0)?;
     if ver != VERSION {
-        return Err(format!("документ.version: файл версии {ver}, поддерживается только {VERSION}"));
+        return Err(Msg::new("doc.version").arg("field", "version").arg("got", ver).arg("supported", VERSION));
     }
 
-    let t = v_obj(v_has(o, D, "tile")?, "документ.tile")?;
-    v_keys(t, "документ.tile", &["width", "height"])?;
+    let t = v_obj(v_has(o, D, "tile")?, "tile")?;
+    v_keys(t, "tile", &["width", "height"])?;
 
-    let r = v_obj(v_has(o, D, "render")?, "документ.render")?;
-    v_keys(r, "документ.render", &["stopMix", "dither", "webpQuality"])?;
-    let dz = v_obj(v_has(r, "документ.render", "dither")?, "документ.render.dither")?;
-    v_keys(dz, "документ.render.dither", &["mode", "amount"])?;
+    let r = v_obj(v_has(o, D, "render")?, "render")?;
+    v_keys(r, "render", &["stopMix", "dither", "webpQuality"])?;
+    let dz = v_obj(v_has(r, "render", "dither")?, "render.dither")?;
+    v_keys(dz, "render.dither", &["mode", "amount"])?;
 
     let background = v_has(o, D, "background")?;
     let channels = match v_has(o, D, "channels")? {
         Value::Array(a) => a,
-        v => return Err(format!("документ.channels: ожидается массив, получено {}", js_type(v))),
+        v => return Err(Msg::new("doc.notArray").arg("field", "channels").arg("got", js_type(v))),
     };
 
     Ok(Doc {
         name: v_str(o, D, "name")?.to_string(),
-        tile_w: v_int(t, "документ.tile", "width", 8.0, 4096.0)? as u32,
-        tile_h: v_int(t, "документ.tile", "height", 8.0, 4096.0)? as u32,
-        stop_mix: v_enum(r, "документ.render", "stopMix", StopMix::TABLE)?,
-        dither_mode: v_enum(dz, "документ.render.dither", "mode", DitherMode::TABLE)?,
-        dither_amount: v_num(dz, "документ.render.dither", "amount", 0.0, 4.0)?,
-        webp_quality: v_num(r, "документ.render", "webpQuality", 0.0, 1.0)?,
-        background: v_color(background, "документ.background")?,
+        tile_w: v_int(t, "tile", "width", 8.0, 4096.0)? as u32,
+        tile_h: v_int(t, "tile", "height", 8.0, 4096.0)? as u32,
+        stop_mix: v_enum(r, "render", "stopMix", StopMix::TABLE)?,
+        dither_mode: v_enum(dz, "render.dither", "mode", DitherMode::TABLE)?,
+        dither_amount: v_num(dz, "render.dither", "amount", 0.0, 4.0)?,
+        webp_quality: v_num(r, "render", "webpQuality", 0.0, 1.0)?,
+        background: v_color(background, "background")?,
         channels: channels
             .iter()
             .enumerate()
-            .map(|(i, c)| v_channel(c, &format!("документ.channels[{i}]")))
+            .map(|(i, c)| v_channel(c, &format!("channels[{i}]")))
             .collect::<R<Vec<_>>>()?,
     })
 }
 
 /// Разбор текста JSON.
 pub fn parse_text(text: &str) -> R<Doc> {
-    let v: Value = serde_json::from_str(text).map_err(|e| format!("не разбирается как JSON: {e}"))?;
+    let v: Value = serde_json::from_str(text).map_err(|e| Msg::new("doc.json").arg("detail", e))?;
     parse(&v)
 }
 
@@ -397,30 +404,72 @@ mod tests {
         assert_eq!(d.channels[0].blend, Blend::SoftLight);
     }
 
+    /// Ключ и аргументы ошибки — то, что сверяет интерфейс.
+    fn err(r: R<Doc>) -> (&'static str, Vec<(&'static str, String)>) {
+        let m = r.unwrap_err();
+        (m.key, m.args)
+    }
+
+    fn a(pairs: &[(&'static str, &str)]) -> Vec<(&'static str, String)> {
+        pairs.iter().map(|(k, v)| (*k, v.to_string())).collect()
+    }
+
     #[test]
     fn errors_name_the_exact_field() {
-        let cases: &[(&str, &str)] = &[
-            (r#"{"format":"zerno-noise-tile","version":1}"#, "документ.tile: поле отсутствует (обязательное)"),
-            (
-                r#"{"format":"other","version":1,"name":"x","tile":{"width":8,"height":8},"render":{},"background":{},"channels":[]}"#,
-                "документ.format: ожидается \"zerno-noise-tile\", получено \"other\"",
-            ),
-            (
-                r#"{"format":"zerno-noise-tile","version":2,"name":"x","tile":{"width":8,"height":8},"render":{},"background":{},"channels":[]}"#,
-                "документ.version: файл версии 2, поддерживается только 1",
-            ),
-        ];
-        for (text, want) in cases {
-            assert_eq!(parse_text(text).unwrap_err(), *want);
-        }
+        assert_eq!(err(parse_text(r#"{"format":"zerno-noise-tile","version":1}"#)), ("doc.missing", a(&[("field", "tile")])));
+        assert_eq!(
+            err(parse_text(
+                r#"{"format":"other","version":1,"name":"x","tile":{"width":8,"height":8},"render":{},"background":{},"channels":[]}"#
+            )),
+            ("doc.format", a(&[("field", "format"), ("want", "zerno-noise-tile"), ("got", "other")]))
+        );
+        assert_eq!(
+            err(parse_text(
+                r#"{"format":"zerno-noise-tile","version":2,"name":"x","tile":{"width":8,"height":8},"render":{},"background":{},"channels":[]}"#
+            )),
+            ("doc.version", a(&[("field", "version"), ("got", "2"), ("supported", "1")]))
+        );
+        // Корень — пустой адрес; массив называется "array".
+        assert_eq!(err(parse_text("[]")), ("doc.notObject", a(&[("field", ""), ("got", "array")])));
+        assert_eq!(err(parse_text("{")).0, "doc.json");
+
         let mut v: Value = serde_json::from_str(GOOD).unwrap();
         v["channels"][0]["noise"]["shape"]["gamma"] = Value::from(9);
         assert_eq!(
-            parse(&v).unwrap_err(),
-            "документ.channels[0].noise.shape.gamma: значение 9 вне диапазона [0.1; 8]"
+            err(parse(&v)),
+            ("doc.range", a(&[("field", "channels[0].noise.shape.gamma"), ("value", "9"), ("min", "0.1"), ("max", "8")]))
         );
         v["channels"][0]["noise"]["shape"]["gamma"] = Value::from(1);
+        v["channels"][0]["noise"]["seed"] = Value::from(1.5);
+        assert_eq!(err(parse(&v)), ("doc.notInt", a(&[("field", "channels[0].noise.seed"), ("value", "1.5")])));
+        v["channels"][0]["noise"]["seed"] = Value::from(1);
+        v["channels"][0]["blend"] = Value::from("x");
+        let allowed = "normal, multiply, screen, overlay, hard-light, soft-light, add, subtract, darken, lighten, difference";
+        assert_eq!(
+            err(parse(&v)),
+            ("doc.badEnum", a(&[("field", "channels[0].blend"), ("value", "x"), ("allowed", allowed)]))
+        );
+        v["channels"][0]["blend"] = Value::from("normal");
         v["channels"][0]["zzz"] = Value::from(1);
-        assert!(parse(&v).unwrap_err().starts_with("документ.channels[0].zzz: неизвестное поле. Допустимы: id, name"));
+        assert_eq!(
+            err(parse(&v)),
+            ("doc.unknownField", a(&[("field", "channels[0].zzz"), ("allowed", "id, name, enabled, blend, opacity, noise, low, high")]))
+        );
+
+        let mut v: Value = serde_json::from_str(GOOD).unwrap();
+        v["channels"] = Value::from("x");
+        assert_eq!(err(parse(&v)), ("doc.notArray", a(&[("field", "channels"), ("got", "string")])));
+        let mut v: Value = serde_json::from_str(GOOD).unwrap();
+        v["render"]["dither"]["amount"] = Value::Null;
+        assert_eq!(err(parse(&v)), ("doc.notNumber", a(&[("field", "render.dither.amount"), ("got", "null")])));
+        let mut v: Value = serde_json::from_str(GOOD).unwrap();
+        v["tile"] = Value::from(true);
+        assert_eq!(err(parse(&v)), ("doc.notObject", a(&[("field", "tile"), ("got", "boolean")])));
+        let mut v: Value = serde_json::from_str(GOOD).unwrap();
+        v["channels"][0]["enabled"] = Value::from(1);
+        assert_eq!(err(parse(&v)), ("doc.notBool", a(&[("field", "channels[0].enabled"), ("got", "number")])));
+        v["channels"][0]["enabled"] = Value::from(true);
+        v["channels"][0]["id"] = Value::from(vec![1]);
+        assert_eq!(err(parse(&v)), ("doc.notString", a(&[("field", "channels[0].id"), ("got", "array")])));
     }
 }

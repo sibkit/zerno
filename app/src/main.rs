@@ -4,17 +4,25 @@
 //! zerno-engine; интерфейс зовёт его командой `render` и получает сырой RGBA
 //! одним двоичным буфером, без перекодирования в JSON. Файлы (библиотека,
 //! открытие, сохранение, экспорт) читает и пишет только Rust.
+//!
+//! Ошибки команд — не текст, а сообщения `{"key","args"}` (см. err.rs):
+//! переводит их интерфейс. Русские тексты здесь остались только у ошибок
+//! запуска, которые случаются до появления интерфейса.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod err;
 mod files;
 mod titlebar;
+
+use err::AppErr;
 
 use serde::Serialize;
 use serde_json::Value;
 use std::sync::Arc;
 use tauri::ipc::Response;
 use tauri::{Manager, State};
+use zerno_engine::msg::Msg;
 use zerno_engine::render::{parse_jobs, Engine};
 
 /// Предел кэша шумовых полей. Тот же, что был у сервера по умолчанию:
@@ -24,8 +32,9 @@ const FIELD_CACHE_BYTES: usize = 256 * 1024 * 1024;
 type Eng<'a> = State<'a, Arc<Engine>>;
 
 /// Тяжёлую работу — с главного потока долой, иначе окно замирает.
-async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(f).await.map_err(|e| format!("рабочий поток упал: {e}"))?
+async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, Msg> + Send + 'static) -> Result<T, AppErr> {
+    let r = tauri::async_runtime::spawn_blocking(f).await.map_err(|e| Msg::new("worker.crashed").arg("detail", e))?;
+    Ok(r?)
 }
 
 #[derive(Serialize)]
@@ -42,11 +51,11 @@ struct EngineInfo {
 
 /// Ошибка окраски полосы заголовка (None — применилась). Интерфейс показывает
 /// её сообщением: молча оставить системную полосу было бы скрытым сбоем.
-struct TitleBarStatus(Option<String>);
+struct TitleBarStatus(Option<Msg>);
 
 #[tauri::command]
-fn titlebar_error(status: State<'_, TitleBarStatus>) -> Option<String> {
-    status.0.clone()
+fn titlebar_error(status: State<'_, TitleBarStatus>) -> Option<AppErr> {
+    status.0.clone().map(AppErr)
 }
 
 #[tauri::command]
@@ -65,7 +74,7 @@ fn engine_info(engine: Eng<'_>) -> EngineInfo {
 
 /// `{"jobs":[{"width","height","doc"}]}` → буфер ZRN1 (см. engine/src/render.rs).
 #[tauri::command]
-async fn render(engine: Eng<'_>, request: Value) -> Result<Response, String> {
+async fn render(engine: Eng<'_>, request: Value) -> Result<Response, AppErr> {
     let e = engine.inner().clone();
     let buf = blocking(move || e.render(&parse_jobs(&request)?)).await?;
     Ok(Response::new(buf))
@@ -83,7 +92,7 @@ fn main() {
             #[cfg(windows)]
             let tb = titlebar::apply(&win).err();
             #[cfg(not(windows))]
-            let tb = Some(format!("полоса заголовка окна «{}» красится только в Windows 11", win.label()));
+            let tb = Some(Msg::new("titlebar.notWindows"));
             app.manage(TitleBarStatus(tb));
             // Окно создаётся скрытым (tauri.conf.json, visible: false) и
             // показывается только после окраски полосы: иначе первые ~0.3 с

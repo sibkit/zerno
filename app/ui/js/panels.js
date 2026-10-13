@@ -46,7 +46,7 @@ function buildLeft(){
 const TILE_PRESETS=[64,128,192,256,384,512,768,1024];
 
 function buildTileSection(root){
-  const s=makeSection(root,'tile','Плитка','tile');
+  const s=makeSection(root,'tile',tr('sec.tile'),'tile');
   const chips=el('div','chips');
   for(const p of TILE_PRESETS){
     const c=el('div','chip',p+'²');
@@ -63,14 +63,14 @@ function buildTileSection(root){
     s.count.textContent=doc.tile.width+'×'+doc.tile.height;
     changed();
   };
-  makeRow(s.body,{label:'Ширина',min:TILE_MIN,max:TILE_MAX,step:1,get:()=>doc.tile.width,set:v=>doc.tile.width=v,onInput:upd});
-  makeRow(s.body,{label:'Высота',min:TILE_MIN,max:TILE_MAX,step:1,get:()=>doc.tile.height,set:v=>doc.tile.height=v,onInput:upd});
+  makeRow(s.body,{label:tr('tile.width'),min:TILE_MIN,max:TILE_MAX,step:1,get:()=>doc.tile.width,set:v=>doc.tile.width=v,onInput:upd});
+  makeRow(s.body,{label:tr('tile.height'),min:TILE_MIN,max:TILE_MAX,step:1,get:()=>doc.tile.height,set:v=>doc.tile.height=v,onInput:upd});
   s.count.textContent=doc.tile.width+'×'+doc.tile.height;
 }
 
 function buildBgSection(root){
-  const s=makeSection(root,'bg','Фон плитки','bg');
-  makeColorEditor(s.body,'background','фон',doc.background,()=>{
+  const s=makeSection(root,'bg',tr('sec.bg'),'bg');
+  makeColorEditor(s.body,'background',tr('bg.color'),doc.background,()=>{
     s.count.textContent=okhslToHex(doc.background);
     changed();
   });
@@ -78,20 +78,20 @@ function buildBgSection(root){
 }
 
 function buildChannelsSection(root){
-  const s=makeSection(root,'chans','Шумовые каналы','chans');
+  const s=makeSection(root,'chans',tr('sec.chans'),'chans');
   const list=el('div','chans');
   s.body.appendChild(list);
   for(const ch of doc.channels) list.appendChild(buildCard(ch));
   const add=el('div','chips');
   add.style.marginTop='9px';
-  for(const t of Object.keys(NOISE_TYPES)){
-    const c=el('div','chip chip-add','+ '+NOISE_TYPES[t].label);
+  for(const ty of NOISE_TYPE_KEYS){
+    const c=el('div','chip chip-add','+ '+tr('noise.'+ty));
     const th=el('span','chip-thumb');
-    th.dataset.type=t;
-    if(typeThumbs[t]) th.style.backgroundImage='url("'+typeThumbs[t]+'")';
+    th.dataset.type=ty;
+    if(typeThumbs[ty]) th.style.backgroundImage='url("'+typeThumbs[ty]+'")';
     c.prepend(th);
     c.addEventListener('click',()=>{
-      const ch=factoryChannel(t);
+      const ch=factoryChannel(ty,tr('noise.'+ty+'.short'));
       cardState[ch.id]={open:true};
       doc.channels.push(ch);
       buildLeft(); changed();
@@ -119,7 +119,7 @@ async function makeTypeThumbs(){
       background:{h:0,s:0,l:0.12,a:1},
       channels:[{id:'t',name:t,enabled:true,blend:'normal',opacity:1,noise:noise,
         low:{h:250,s:0.05,l:0.18,a:1},high:{h:250,s:0.05,l:0.86,a:1}}]
-    },'миниатюра типа '+t);
+    },tr('src.typeThumb',{type:t}));
     return {doc:scaledDoc(d,TYPE_THUMB_PX,TYPE_THUMB_PX),width:TYPE_THUMB_PX,height:TYPE_THUMB_PX};
   });
   const res=await renderTiles(jobs);
@@ -170,7 +170,7 @@ function buildCard(ch){
   const cp=el('button','ibtn','⧉');
   cp.addEventListener('click',()=>{
     const c=JSON.parse(JSON.stringify(ch));
-    c.id=uid(); c.name=ch.name+' копия'; c.noise.seed=(Math.random()*2147483647)|0;
+    c.id=uid(); c.name=ch.name+tr('chan.copySuffix'); c.noise.seed=(Math.random()*2147483647)|0;
     cardState[c.id]={open:true};
     doc.channels.splice(doc.channels.indexOf(ch)+1,0,c);
     buildLeft(); changed();
@@ -208,8 +208,8 @@ function fillCardBody(ch,body,warn){
   const upd=()=>changed();
   const rebuild=()=>{ fillCardBody(ch,body,warn); changed(); };
 
-  subHead(body,'Шум','noise');
-  makeSelect(body,'Тип',mapLabels(NOISE_TYPES),()=>n.type,v=>{
+  subHead(body,tr('sub.noise'),'noise');
+  makeSelect(body,tr('noise.type'),labelsFor(NOISE_TYPE_KEYS,'noise.'),()=>n.type,v=>{
     n.type=v;
     if(v==='grain'&&n.sizeX>16){ n.sizeX=2; n.sizeY=2; }
     if(v!=='grain'&&n.sizeX<8){ n.sizeX=64; n.sizeY=64; }
@@ -217,7 +217,7 @@ function fillCardBody(ch,body,warn){
 
   cardRefs[ch.id].sizeRows=[sizeRow(body,n,'x',upd),sizeRow(body,n,'y',upd)];
   const link=el('div','chips');
-  const lb=el('div','chip','связать X=Y');
+  const lb=el('div','chip',tr('noise.linkXY'));
   lb.addEventListener('click',()=>{ n.sizeY=n.sizeX; rebuild(); });
   link.appendChild(lb);
   body.appendChild(link);
@@ -225,46 +225,39 @@ function fillCardBody(ch,body,warn){
   seedRow(body,n,upd);
 
   if(info.octaves){
-    makeRow(body,{label:'Октавы',min:1,max:10,step:1,get:()=>n.octaves,set:v=>n.octaves=v,onInput:upd});
-    makeRow(body,{label:'Затухание',min:0,max:1,step:0.01,get:()=>n.gain,set:v=>n.gain=v,onInput:upd});
-    makeRow(body,{label:'Лакунарн.',min:2,max:4,step:1,get:()=>n.lacunarity,set:v=>n.lacunarity=v,onInput:upd});
+    makeRow(body,{label:tr('noise.octaves'),min:1,max:10,step:1,get:()=>n.octaves,set:v=>n.octaves=v,onInput:upd});
+    makeRow(body,{label:tr('noise.gain'),min:0,max:1,step:0.01,get:()=>n.gain,set:v=>n.gain=v,onInput:upd});
+    makeRow(body,{label:tr('noise.lacunarity'),min:2,max:4,step:1,get:()=>n.lacunarity,set:v=>n.lacunarity=v,onInput:upd});
   }
-  if(info.ridged) makeCheck(body,'Гребни (ridged)',()=>n.ridged,v=>n.ridged=v,upd);
+  if(info.ridged) makeCheck(body,tr('noise.ridged'),()=>n.ridged,v=>n.ridged=v,upd);
 
   if(n.type==='worley'){
-    makeSelect(body,'Режим',WORLEY_MODES,()=>n.worleyMode,v=>n.worleyMode=v,upd);
-    makeRow(body,{label:'Разброс',min:0,max:1,step:0.01,get:()=>n.worleyJitter,set:v=>n.worleyJitter=v,onInput:upd});
+    makeSelect(body,tr('noise.worleyMode'),labelsFor(WORLEY_MODES,'worley.'),()=>n.worleyMode,v=>n.worleyMode=v,upd);
+    makeRow(body,{label:tr('noise.jitter'),min:0,max:1,step:0.01,get:()=>n.worleyJitter,set:v=>n.worleyJitter=v,onInput:upd});
   }
   if(n.type==='grain'){
-    makeRow(body,{label:'ВЧ-фильтр',min:0,max:64,step:1,get:()=>n.grainHp,set:v=>n.grainHp=v,onInput:upd});
+    makeRow(body,{label:tr('noise.grainHp'),min:0,max:64,step:1,get:()=>n.grainHp,set:v=>n.grainHp=v,onInput:upd});
   }
   if(info.warp){
-    makeRow(body,{label:'Искажение',min:0,max:400,step:1,get:()=>n.warpAmount,set:v=>n.warpAmount=v,onInput:upd});
+    makeRow(body,{label:tr('noise.warp'),min:0,max:400,step:1,get:()=>n.warpAmount,set:v=>n.warpAmount=v,onInput:upd});
     if(n.warpAmount>0)
-      makeRow(body,{label:'Масштаб иск.',min:2,max:2048,step:1,get:()=>n.warpSize,set:v=>n.warpSize=v,onInput:upd});
+      makeRow(body,{label:tr('noise.warpSize'),min:2,max:2048,step:1,get:()=>n.warpSize,set:v=>n.warpSize=v,onInput:upd});
   }
 
-  subHead(body,'Форма','shape');
+  subHead(body,tr('sub.shape'),'shape');
   const sh=n.shape;
-  makeRow(body,{label:'Контраст',min:-1,max:1,step:0.01,get:()=>sh.contrast,set:v=>sh.contrast=v,onInput:upd});
-  makeRow(body,{label:'Смещение',min:-0.5,max:0.5,step:0.005,get:()=>sh.bias,set:v=>sh.bias=v,onInput:upd});
-  makeRow(body,{label:'Гамма',min:0.1,max:8,step:0.01,get:()=>sh.gamma,set:v=>sh.gamma=v,onInput:upd});
-  makeCheck(body,'Инверсия',()=>sh.invert,v=>sh.invert=v,upd);
-  makeCheck(body,'Нормализация диапазона',()=>sh.normalize,v=>sh.normalize=v,upd);
+  makeRow(body,{label:tr('shape.contrast'),min:-1,max:1,step:0.01,get:()=>sh.contrast,set:v=>sh.contrast=v,onInput:upd});
+  makeRow(body,{label:tr('shape.bias'),min:-0.5,max:0.5,step:0.005,get:()=>sh.bias,set:v=>sh.bias=v,onInput:upd});
+  makeRow(body,{label:tr('shape.gamma'),min:0.1,max:8,step:0.01,get:()=>sh.gamma,set:v=>sh.gamma=v,onInput:upd});
+  makeCheck(body,tr('shape.invert'),()=>sh.invert,v=>sh.invert=v,upd);
+  makeCheck(body,tr('shape.normalize'),()=>sh.normalize,v=>sh.normalize=v,upd);
 
-  subHead(body,'Цвет','color');
+  subHead(body,tr('sub.color'),'color');
   buildStops(body,ch,()=>{ updateRamp(ch); upd(); });
 
-  subHead(body,'Слой','layer');
-  makeSelect(body,'Смешив.',BLEND_MODES,()=>ch.blend,v=>ch.blend=v,upd);
-  makeRow(body,{label:'Непрозр.',min:0,max:1,step:0.005,get:()=>ch.opacity,set:v=>ch.opacity=v,onInput:upd});
-}
-
-function plural(n,one,few,many){
-  const a=n%10, b=n%100;
-  if(a===1&&b!==11) return one;
-  if(a>=2&&a<=4&&(b<12||b>14)) return few;
-  return many;
+  subHead(body,tr('sub.layer'),'layer');
+  makeSelect(body,tr('layer.blend'),labelsFor(BLEND_MODES,'blend.'),()=>ch.blend,v=>ch.blend=v,upd);
+  makeRow(body,{label:tr('layer.opacity'),min:0,max:1,step:0.005,get:()=>ch.opacity,set:v=>ch.opacity=v,onInput:upd});
 }
 
 /**
@@ -276,12 +269,12 @@ function sizeRow(body,n,axis,upd){
   const D=()=>axis==='x'?doc.tile.width:doc.tile.height;
   const grain=n.type==='grain';
   return makeRow(body,{
-    label:(grain?'Зерно ':'Пятно ')+axis.toUpperCase(),
+    label:tr(grain?'noise.grainSize':'noise.spotSize',{axis:axis.toUpperCase()}),
     step:0.1,decimals:1,log:true,
     min:()=>D()/maxCellsFor(n.type,D()), max:()=>D(),
     snap:v=>D()/cellsFor(n.type,v,D()),
     get:()=>n[key], set:v=>{ n[key]=v; }, onInput:upd,
-    note:()=>{ const c=cellsFor(n.type,n[key],D()); return c+' '+plural(c,'ячейка','ячейки','ячеек'); }
+    note:()=>{ const c=cellsFor(n.type,n[key],D()); return trn('noise.cells',c); }
   });
 }
 
@@ -301,7 +294,7 @@ function buildStops(body,ch,onChange){
     b.addEventListener('click',()=>{ st.stop=st.stop===k?null:k; paint(); showEditor(); });
     return {b,i};
   };
-  const lo=mk('low','слабый'), hi=mk('high','сильный');
+  const lo=mk('low',tr('stops.low')), hi=mk('high',tr('stops.high'));
   const ramp=el('div','stops-ramp');
   const swap=el('button','ibtn','⇄');
   swap.addEventListener('click',()=>{
@@ -323,7 +316,7 @@ function buildStops(body,ch,onChange){
     if(!st.stop) return;
     const key=ch.id+':'+st.stop;
     okOpen[key]=true;
-    makeColorEditor(ed,key,st.stop==='low'?'слабый шум · 0':'сильный шум · 1',ch[st.stop],()=>{ paint(); onChange(); });
+    makeColorEditor(ed,key,tr(st.stop==='low'?'stops.lowTitle':'stops.highTitle'),ch[st.stop],()=>{ paint(); onChange(); });
   }
   paint(); showEditor();
 }
@@ -340,15 +333,16 @@ function updateRamp(ch){
   r.ramp.style.setProperty('--ramp',rampCss(ch));
 }
 
-function mapLabels(types){
+/** Подписи значений для списка: значение → перевод ключа prefix+значение. */
+function labelsFor(keys,prefix){
   const m={};
-  for(const k of Object.keys(types)) m[k]=types[k].label;
+  for(const k of keys) m[k]=tr(prefix+k);
   return m;
 }
 
 function seedRow(parent,n,onInput){
   const r=el('div','row');
-  r.appendChild(el('label',null,'Сид'));
+  r.appendChild(el('label',null,tr('noise.seed')));
   const inp=document.createElement('input');
   inp.type='text'; inp.className='num'; inp.spellcheck=false;
   inp.style.textAlign='left'; inp.style.cursor='text';
@@ -360,7 +354,7 @@ function seedRow(parent,n,onInput){
        в отрицательное число через |0. */
     if(!/^-?\d+$/.test(t)||v<-2147483648||v>2147483647){
       inp.classList.add('bad');
-      toast('Сид — целое число от −2147483648 до 2147483647, получено «'+t+'».',true);
+      toast(tr('noise.seedBad',{value:t}),true);
       return;
     }
     inp.classList.remove('bad');
@@ -378,14 +372,14 @@ function seedRow(parent,n,onInput){
 }
 
 function buildOutSection(root){
-  const s=makeSection(root,'out','Вывод','out');
+  const s=makeSection(root,'out',tr('sec.out'),'out');
   const upd=()=>changed();
-  makeSelect(s.body,'Смешив.',STOP_MIX,()=>doc.render.stopMix,v=>doc.render.stopMix=v,()=>{ buildLeft(); changed(); });
-  subHead(s.body,'Дизеринг',null);
-  makeSelect(s.body,'Режим',DITHER_MODES,()=>doc.render.dither.mode,v=>doc.render.dither.mode=v,()=>{ buildLeft(); changed(); });
+  makeSelect(s.body,tr('out.stopMix'),labelsFor(STOP_MIX,'stopMix.'),()=>doc.render.stopMix,v=>doc.render.stopMix=v,()=>{ buildLeft(); changed(); });
+  subHead(s.body,tr('sub.dither'),null);
+  makeSelect(s.body,tr('out.ditherMode'),labelsFor(DITHER_MODES,'dither.'),()=>doc.render.dither.mode,v=>doc.render.dither.mode=v,()=>{ buildLeft(); changed(); });
   if(doc.render.dither.mode!=='off')
-    makeRow(s.body,{label:'Сила, LSB',min:0,max:4,step:0.05,get:()=>doc.render.dither.amount,set:v=>doc.render.dither.amount=v,onInput:upd});
-  subHead(s.body,'WebP',null);
-  makeRow(s.body,{label:'Качество',min:0,max:1,step:0.01,get:()=>doc.render.webpQuality,set:v=>doc.render.webpQuality=v});
+    makeRow(s.body,{label:tr('out.ditherAmount'),min:0,max:4,step:0.05,get:()=>doc.render.dither.amount,set:v=>doc.render.dither.amount=v,onInput:upd});
+  subHead(s.body,tr('sub.webp'),null);
+  makeRow(s.body,{label:tr('out.webpQuality'),min:0,max:1,step:0.01,get:()=>doc.render.webpQuality,set:v=>doc.render.webpQuality=v});
 }
 

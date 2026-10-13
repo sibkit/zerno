@@ -41,7 +41,7 @@ function accToImageData(acc,W,H,dither){
   const img=new ImageData(W,H);
   const d=img.data;
   const mode=dither.mode;
-  if(!(mode in DITHER_MODES)) throw new Error('Неизвестный режим дизеринга: "'+mode+'"');
+  if(DITHER_MODES.indexOf(mode)<0) throw new Error('Неизвестный режим дизеринга: "'+mode+'"');
   const amt=mode==='off'?0:dither.amount;
   for(let Y=0;Y<H;Y++){
     const by=(Y&7)<<3;
