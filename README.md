@@ -1,262 +1,177 @@
-# ЗЕРНО — генератор бесшовного шума для фона
+<div align="center">
 
-Настольное приложение: делает плитки шума, которые стыкуются друг с другом
-без видимых полос на стыке. Движок на Rust, оболочка — Tauri 2 (WebView2).
+<img src="app/icons/icon.png" width="112" alt="ZERNO icon — a coffee bean">
 
-Подробности реализации, найденные ловушки и замеры — в [docs/how_it_made.md](docs/how_it_made.md).
+# ZERNO
 
-## Сборка и запуск
+**Seamless noise tiles for backgrounds — grain, paper, concrete, film, silk.**<br>
+A small, fast desktop app: design a texture with live preview, export a tile that repeats with no visible seam.
 
-Нужны Rust (нужная версия ставится сама по `rust-toolchain.toml`) и WebView2
-Runtime (в Windows 10/11 он уже есть). Node и tauri-cli не нужны: интерфейс —
-обычные файлы из `app/ui/`, они вшиваются в exe при сборке.
+[![Release](https://img.shields.io/github/v/release/sibkit/zerno?color=d97757&label=download)](https://github.com/sibkit/zerno/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-c2b8a3)](LICENSE)
+![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-3a3a37)
+![Rust + Tauri 2](https://img.shields.io/badge/Rust%20%2B%20Tauri%202-3a3a37)
 
-```
-cargo build --release -p zerno     приложение: target/release/zerno.exe
-cargo run --release -p zerno       собрать и запустить
-```
+**English** · [Русский](README.ru.md)
 
-```
-engine/               движок (крейт zerno-engine), без зависимостей от Tauri
-  src/noise.rs          решётки, Перлин / Value / Ворлей / зерно, искажение домена
-  src/composite.rs      форма, цветовые таблицы, наложение, дизеринг
-  src/color.rs          Oklab / OKHSL
-  src/doc.rs            модель документа и строгий разбор JSON
-  src/render.rs         пакетный рендер, кэш полей, формат ответа ZRN1
-  src/bin/zerno-render.rs  рендер из командной строки (для сверки)
-app/                  приложение (крейт zerno, Tauri 2)
-  src/main.rs           команды render и engine_info, запуск
-  src/files.rs          библиотека, открыть/сохранить, экспорт PNG/WEBP, настройки
-  ui/                   интерфейс: index.html, css/, js/, fonts/
-presets/              пресеты из комплекта
-docs/how_it_made.md   как устроено, решения, ловушки, замеры
-tests/                проверки на Node; tests/reference — эталонный движок на JS
-tools/                make-presets.js (пресеты), make-icon.js (иконка)
-```
+<img src="docs/images/screenshot.png" alt="ZERNO main window: tile parameters on the left, live tiled preview in the center, preset library on the right">
 
-## Работа
+</div>
 
-Оформление — тёмная тема в духе приложения Claude: тёплый графит, текст цвета
-слоновой кости, терракотовый акцент; сплошные панели без зазоров, заголовки
-обычным шрифтом. Полоса заголовка окна — в тех же цветах.
+## What it is for
 
-* **Живой рендер.** Плитка перерисовывается прямо во время перетаскивания
-  ползунка: пока считается один кадр, правки копятся, и следующий кадр сразу
-  берёт последнее состояние. Пропусков и устаревших кадров нет.
-* **Отмена и повтор** — `Ctrl+Z`, `Ctrl+Y` (или `Ctrl+Shift+Z`), кнопки ↶ ↷.
-  Перетаскивание ползунка — один шаг, а не сотня. Открытие пресета — тоже шаг:
-  `Ctrl+Z` вернёт прежний документ вместе с его файлом.
-* **Сессия** сохраняется сама: после перезапуска открыт тот же документ.
-* **Файл документа.** Рядом с именем видно, с каким файлом связан документ, и
-  точка, если есть несохранённые правки.
-* **Справка** — окно внутри приложения: значок «?» у каждой группы параметров
-  открывает её раздел, где объяснены все ползунки и их значения; `F1` или «?»
-  справа вверху — начало справки, `Esc` закрывает. Всплывающих подсказок нет.
+Flat color looks cheap; a photo texture is heavy and repeats with an obvious seam.
+**ZERNO** (Russian *зерно* — "grain", as in film grain or a coffee bean) builds the
+middle ground: a subtle procedural noise texture as a small tile — 64 to 4096 px —
+that you put under `background-repeat` on a website, in an app UI, a slide deck or
+a game menu.
 
-| клавиши | действие |
+The tile is seamless **by construction**, not by blurring the edges: every noise
+field is built on a lattice with a whole number of cells per tile, so the right edge
+is mathematically identical to the left one and the bottom to the top.
+
+<p align="center">
+  <img src="docs/images/seamless.png" alt="Three copies of the same 512×512 tile side by side — no seams visible">
+  <br><sub>Three copies of one 512 × 512 tile side by side. Try to find the joins.</sub>
+</p>
+
+## Features
+
+* **Four noise types** — Perlin (clouds), Value (softer), Worley (cells, cracks, mesh:
+  F1 / F2 / F2−F1) and Grain (film grain; with a high-pass filter it turns into
+  *blue noise* that hides tile repetition).
+* **Layered channels** — stack any number of noise channels over a background color.
+  Each has octaves, gain, lacunarity, ridges, domain warp, contrast / bias / gamma,
+  a two-color gradient with alpha and one of 11 blend modes.
+* **Perceptual color** — colors are edited in OKHSL or OKLCH, gradients mix in Oklab,
+  blending happens in linear light. No muddy midtones, no out-of-gamut surprises.
+* **No banding** — TPDF or Bayer dithering when converting to 8 bit; pure black and
+  opaque alpha stay pure.
+* **Live preview while dragging** — the tile re-renders on every slider move;
+  the scene shows it tiled, with optional tile borders and a half-tile shift that
+  puts the join right in the middle of the screen.
+* **Fast** — multithreaded Rust engine with a noise-field cache: a color tweak on a
+  1024² tile takes ~8 ms, a full noise recompute ~40 ms.
+* **Export** — PNG (with alpha, for overlays), WEBP (lossless at quality 1.00) or a
+  ready-to-paste CSS block with the tile as a data URI.
+* **Presets are plain JSON** — any folder of `*.json` becomes a library; strict
+  validation reports exactly which field is wrong instead of silently guessing.
+* Undo / redo, session restore, built-in help for every parameter.
+
+The interface is in Russian.
+
+## Gallery
+
+The presets that ship with the app, each shown as a single tile:
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/preset-01-tyomny-kholst.png" width="250" alt="Dark canvas"><br><sub>dark canvas</sub></td>
+    <td align="center"><img src="docs/images/preset-02-bumaga-teplaya.png" width="250" alt="Warm paper"><br><sub>warm paper</sub></td>
+    <td align="center"><img src="docs/images/preset-03-beton.png" width="250" alt="Polished concrete"><br><sub>polished concrete</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/preset-04-plenka-400.png" width="250" alt="Film 400 grain overlay"><br><sub>film 400 · transparent overlay</sub></td>
+    <td align="center"><img src="docs/images/preset-05-shelk.png" width="250" alt="Silk"><br><sub>silk</sub></td>
+    <td align="center"><img src="docs/images/preset-06-zvyozdnoe-pole.png" width="250" alt="Star field"><br><sub>star field</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/preset-07-karbon.png" width="250" alt="Carbon weave"><br><sub>carbon weave</sub></td>
+    <td align="center"><img src="docs/images/preset-08-dyuny.png" width="250" alt="Sand dunes"><br><sub>sand dunes</sub></td>
+    <td align="center"><img src="docs/images/preset-10-stalnaya-setka.png" width="250" alt="Steel mesh"><br><sub>steel mesh</sub></td>
+  </tr>
+</table>
+
+## Download
+
+Grab the latest build from **[Releases](https://github.com/sibkit/zerno/releases/latest)**:
+
+* `ZERNO-<version>-windows-x64.zip` — the app plus the preset library and licenses;
+* `zerno.exe` — just the app, a single portable file, no installer.
+
+**Requirements:** Windows 11 or 10, 64-bit, a CPU with SSE4.2 (anything from the last
+~15 years) and the WebView2 runtime — it is already part of Windows 11 and of every
+up-to-date Windows 10. On Windows 10 the title bar keeps the system colors, and the
+app says so.
+
+The exe is not code-signed, so SmartScreen may warn on first launch:
+*More info → Run anyway*.
+
+## Quick start
+
+1. Run `zerno.exe`. It opens with the "dark canvas" preset.
+2. In the right panel press **Папка…** (*Folder…*) and pick the `presets` folder from
+   the zip — or any folder where you want to keep your own presets.
+3. Click a preset, then tweak the channels on the left. Every group has a **?** button
+   that explains each slider.
+4. Export with **PNG**, **WEBP** or **CSS** at the top right.
+
+| keys | action |
 |---|---|
-| `Ctrl+S` / `Ctrl+Shift+S` | сохранить / сохранить как… |
-| `Ctrl+O` | открыть пресет (или бросить `*.json` на окно) |
-| `Ctrl+E` | экспорт PNG |
-| `Ctrl+Z` / `Ctrl+Y` | отмена / повтор |
-| колесо над сценой, `Ctrl+=` / `Ctrl+-` | масштаб сцены |
-| двойной клик по сцене, `Ctrl+0` | масштаб 1:1 |
-| тянуть по числовому полю | менять значение; `Shift` — точнее, `Ctrl` — быстрее |
-| `F1` | справка |
+| `Ctrl+S` / `Ctrl+Shift+S` | save / save as… |
+| `Ctrl+O` | open a preset (or drop a `*.json` on the window) |
+| `Ctrl+E` | export PNG |
+| `Ctrl+Z` / `Ctrl+Y` | undo / redo |
+| mouse wheel over the scene, `Ctrl+=` / `Ctrl+-` | zoom |
+| double-click the scene, `Ctrl+0` | zoom 1:1 |
+| drag a number field | change the value; `Shift` — finer, `Ctrl` — faster |
+| `F1` | help |
 
-## Скорость
+## Performance
 
-Пресет «тёмный холст», 3 канала, AMD Ryzen 7 5800H (16 потоков),
-`cargo run --release -p zerno-engine --example bench`:
+"Dark canvas" preset, 3 channels, AMD Ryzen 7 5800H (16 threads):
 
-| плитка | правка цвета | пересчёт шума | было на Zig (пересчёт) | JS в браузере |
-|---|---|---|---|---|
-| 512² | **2.0 мс** | **10.8 мс** | 15.6 мс | 41 мс |
-| 1024² | **7.7 мс** | **40 мс** | 52 мс | 266 мс |
-| 2048² | **33 мс** | **154 мс** | 188 мс | — |
+| tile | color edit | noise recompute |
+|---|---|---|
+| 512² | 2.0 ms | 10.8 ms |
+| 1024² | 7.7 ms | 40 ms |
+| 2048² | 33 ms | 154 ms |
 
-* **кэш шумовых полей** (до 256 МБ) — правка цвета, формы или режима
-  наложения не пересчитывает шум вовсе;
-* **пакетный рендер** — главная плитка и миниатюры всех каналов считаются
-  одним вызовом, параллельно;
-* **многопоточность** (rayon) — поле строится полосами строк, композит тоже;
-* пиксели уходят в интерфейс двоичным буфером, без JSON и base64.
+A color, shape or blend edit doesn't touch the noise at all (field cache up to 256 MB);
+the main tile and the channel thumbnails render in one parallel batch; pixels go to the
+UI as a raw binary buffer, without JSON or base64.
 
-## Один алгоритм — эталон и движок
+## Building from source
 
-Движок на Rust — порт эталона на JS (`tests/reference`). Это проверяется
-автоматически: оба считают все пресеты, результаты сверяются попиксельно.
-Максимальное расхождение — **1 младший бит** (разный порядок округления
-`f32`/`f64`). Дизеринг позиционный (зависит только от координат пикселя),
-поэтому многопоточный расчёт даёт ровно ту же картинку, что однопоточный.
+You need Rust — the exact toolchain is pinned in `rust-toolchain.toml` and installs
+itself. Node and tauri-cli are **not** needed: the UI is plain HTML/CSS/JS from
+`app/ui/`, embedded into the exe at build time.
 
-## Как устроена бесшовность
-
-Каждое поле шума строится на решётке, у которой **число ячеек на плитку целое**.
-Координата выборки `x = X · cells / W`, поэтому при `X = W` она равна ровно `cells` —
-то есть ровно периоду решётки. Левый край плитки тождественно равен правому,
-верхний — нижнему. Это выполняется для всех типов шума, для любого числа октав,
-при искажении домена и при любом размере плитки, включая нечётный.
-
-Свойство проверяется численно: средняя разность соседних столбцов на стыке
-сравнивается с распределением таких же разностей внутри плитки. На стыке —
-≈ 1× от 95-го процентиля (то есть ничем не выделяется), у заведомо непериодического
-контрольного поля — 7×.
-
-Вторая причина видимых полос — бэндинг при переводе в 8 бит. Его снимает дизеринг
-(TPDF или Байер 8×8), причём шум не добавляется туда, где значение и так точно
-ложится на 8-битный уровень: чистый чёрный и непрозрачная альфа остаются чистыми.
-
-## Устройство документа
-
-Плитка = **фон** (цвет без шума) + стопка **шумовых каналов** сверху вниз.
-Каждый канал:
-
-| | |
-|---|---|
-| **Шум** | тип, размер пятна по X и Y, сид, октавы, затухание, лакунарность, гребни, искажение домена |
-| **Форма** | контраст, смещение, гамма, инверсия, нормализация диапазона |
-| **Цвет** | градиент из двух цветов с альфой: «слабый» (шум = 0) → «сильный» (шум = 1) |
-| **Слой** | режим смешивания (11 штук) и непрозрачность |
-
-Типы шума:
-
-* **Перлин** — облака, классический градиентный fBm;
-* **Value** — мягче Перлина, менее «жилистый»;
-* **Ворлей** — пятна и ячейки; режимы F1, F2, F2−F1 (трещины/сетка);
-* **Зерно** — плёночное зерно; при ВЧ-фильтре > 0 становится «синим» шумом,
-  который почти не даёт заметного повтора плитки.
-
-У кнопок «+ канал» — миниатюра узора каждого типа. Карточка канала в свёрнутом
-виде показывает миниатюру, краткую сводку и полоску градиента — по ней видно,
-что делает канал, не раскрывая его; клик по карточке (стрелка справа)
-разворачивает параметры.
-
-**Размер пятна меняется ступенями.** Бесшовность требует целого числа ячеек на
-плитку, поэтому размер — это всегда «сторона плитки / целое». Ползунок
-логарифмический и встаёт ровно на ступени, а под подписью видно текущее число
-ячеек. Чем крупнее пятно, тем реже ступени: на плитке 256 соседние размеры —
-128 (2 ячейки) и 85.3 (3 ячейки), промежуточных нет.
-
-### Цвет канала: градиент
-
-В карточке канала цвета показаны полосой градиента с двумя ручками: слева
-«слабый шум», справа «сильный шум». Клик по ручке открывает её редактор под
-полосой, повторный клик — прячет; «⇄» меняет цвета местами.
-
-### Цвет: два режима правки
-
-В файле цвет всегда хранится в OKHSL (Björn Ottosson): H 0–360, S и L 0–1,
-плюс альфа. Править его можно в одном из двух режимов, переключатель — в
-заголовке любого редактора цвета, выбор запоминается:
-
-* **HSL** (OKHSL) — при любых S и L цвет внутри гамута sRGB, клиппинга не бывает;
-* **LCH** (OKLCH) — светлота, хрома и тон из Oklab: одинаковое L — одинаковая
-  воспринимаемая яркость при любом тоне. Хрома ограничена гамутом sRGB: если
-  при текущих L и H заданная C не помещается, она снижается до границы, и под
-  ползунками об этом написано. Часть шкалы C за гамутом затемнена.
-
-Рядом всегда есть поле HEX. Смешивание «низ → верх» по умолчанию идёт в OKLab
-(перцептивно ровное, без грязных середин); переключается на линейный sRGB в
-разделе «Вывод». Режимы наложения слоёв всегда считаются в линейном свете по
-формуле композитинга W3C.
-
-## Библиотека пресетов
-
-Библиотека — любая папка с `*.json`, её выбирают кнопкой «Папка…»; выбор
-запоминается (`%APPDATA%\com.sibkit.zerno\settings.json`). Подойдёт и `presets/`
-из комплекта. Пока папка не выбрана, так и написано.
-
-* клик по миниатюре открывает пресет и связывает документ с его файлом —
-  `Ctrl+S` пишет прямо туда;
-* «Сохранить как…» в эту папку сразу видно в библиотеке;
-* крестик на миниатюре удаляет файл (с подтверждением), «↗» открывает папку
-  в проводнике, «↻» перечитывает её;
-* файлы с ошибками не пропадают молча: под заголовком — список с причинами,
-  чужие `*.json` перечислены отдельно.
-
-## Экспорт
-
-* **PNG** — плитка как есть, с альфой (сделайте альфу фона < 1 для накладки);
-  кодирует Rust, без участия WebView;
-* **WEBP** — кодирует WebView2; качество 1.00 — без потерь;
-* **CSS** — в буфер обмена уходит готовый блок с data-URI плитки и `background-repeat`.
-
-Пресет — это сам документ: «Сохранить» / «Сохранить как…».
-
-## Проверка стыковки глазами
-
-Сцена замощена плитками целиком, центральная отмечена уголками. В панели над
-ней: **«Границы»** рисует сетку по краям плиток, **«Сдвиг ½»** сдвигает
-раскладку на половину плитки, чтобы стык оказался в центре, **«Сглаж.»**
-включает сглаживание при увеличении. Масштаб 25–800 % — ползунок или колесо
-над сценой, двойной клик — 1:1; рядом — цвет обрамления, чтобы судить фон на
-светлом и тёмном. Сцена рисуется на canvas синхронно, поэтому при перетаскивании
-ползунков картинка обновляется без мигания.
-
-## Формат JSON
-
-Разбор строгий и без умолчаний: отсутствующее поле, лишнее поле, неверный тип
-или значение вне диапазона дают ошибку с точным адресом, например
-`документ.channels[0].noise.shape.gamma: поле отсутствует (обязательное) [файл: my.json]`.
-Интерфейс и движок проверяют документ одинаково и одинаковыми словами.
-Файл всегда содержит полный набор полей, поэтому пресет переносится без потерь.
-
-```json
-{
-  "format": "zerno-noise-tile",
-  "version": 1,
-  "name": "имя пресета",
-  "tile": { "width": 512, "height": 512 },
-  "render": {
-    "stopMix": "oklab",
-    "dither": { "mode": "tpdf", "amount": 1 },
-    "webpQuality": 1
-  },
-  "background": { "h": 258, "s": 0.07, "l": 0.145, "a": 1 },
-  "channels": [
-    {
-      "id": "clouds", "name": "Облака", "enabled": true,
-      "blend": "normal", "opacity": 1,
-      "noise": {
-        "type": "perlin", "sizeX": 186, "sizeY": 186, "seed": 1337,
-        "octaves": 4, "gain": 0.52, "lacunarity": 2, "ridged": false,
-        "warpAmount": 38, "warpSize": 240,
-        "worleyMode": "f1", "worleyJitter": 1, "grainHp": 3,
-        "shape": { "contrast": 0.1, "bias": 0, "gamma": 1,
-                   "invert": false, "normalize": true }
-      },
-      "low":  { "h": 266, "s": 0.24, "l": 0.04, "a": 0.34 },
-      "high": { "h": 198, "s": 0.30, "l": 0.60, "a": 0.13 }
-    }
-  ]
-}
+```sh
+cargo run --release -p zerno          # build and run
+cargo build --release -p zerno        # → target/release/zerno.exe
 ```
 
-Допустимые значения: `type` — `perlin | value | worley | grain`;
-`worleyMode` — `f1 | f2 | f2f1`; `stopMix` — `oklab | srgb-linear`;
-`dither.mode` — `tpdf | ordered | off`; `blend` — `normal, multiply, screen,
-overlay, hard-light, soft-light, add, subtract, darken, lighten, difference`;
-сторона плитки — 8…4096; сид — целое int32.
+Tests:
 
-## Ограничения, о которых приложение говорит вслух
-
-* Ячейка решётки мельче 2 px вырождает градиентный шум (у Перлина значение в узлах
-  тождественно ноль), поэтому минимальное пятно для Перлина/Value/Ворлея — 2 px.
-  Для попиксельного шума есть тип «Зерно», он рассчитан на 1 px.
-* Число октав ограничивается сверху тем же правилом. Если запрошено больше,
-  чем помещается, карточка канала показывает, до скольких октав ограничено и почему.
-* Сид вне int32 не заворачивается молча — поле подсвечивается и объясняет.
-* Если памяти на поле не хватило, рендер сообщает об этом, а не падает.
-
-## Проверки
-
-```
-cargo test -p zerno-engine                    движок: стыковка, кэш, ошибки, каналы
-cargo build --release -p zerno-engine         нужен для сверки (zerno-render.exe)
-npm install                                   jsdom для проверок интерфейса
-node tests/run-all.js                         эталон, пресеты, паритет Rust/JS, интерфейс
+```sh
+cargo test -p zerno-engine             # engine: seams, cache, errors
+cargo build --release -p zerno-engine  # CLI renderer for the parity check
+npm install                            # jsdom for UI tests
+node tests/run-all.js                  # JS reference, presets, Rust/JS parity, UI
 ```
 
-Проверка интерфейса идёт в jsdom: вместо приложения подставлена заглушка
-`window.__TAURI__`, рендер в ней считает эталон на JS.
+The Rust engine is a port of a JavaScript reference implementation (`tests/reference`).
+Both render every preset and the results are compared pixel by pixel: the maximum
+difference is 1 LSB.
+
+## Project layout
+
+```
+engine/      zerno-engine crate: noise, compositing, color, document parsing — no Tauri
+app/         zerno crate: Tauri 2 shell; app/ui — the interface (HTML/CSS/JS, no bundler)
+presets/     bundled presets
+tests/       Node tests; tests/reference — the JS reference engine
+tools/       generators: presets, icon, README images
+docs/        how_it_made.md — design decisions, pitfalls, measurements (in Russian)
+```
+
+The full document format, color model and list of limits are described in the
+[Russian README](README.ru.md); design notes are in [docs/how_it_made.md](docs/how_it_made.md).
+
+## License
+
+[MIT](LICENSE) © 2026 sibkit.
+
+Bundled fonts — IBM Plex Sans, IBM Plex Mono and Unbounded — are under the
+[SIL Open Font License 1.1](app/ui/fonts/OFL.txt).

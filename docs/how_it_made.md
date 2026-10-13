@@ -2,7 +2,7 @@
 
 Записка для того, кто вернётся к проекту без памяти о том, как он делался.
 Здесь только неочевидное: решения и их причины, найденные ловушки, замеры.
-Что умеет программа и как ей пользоваться — в `README.md`.
+Что умеет программа и как ей пользоваться — в `README.ru.md` (по-английски — `README.md`).
 
 ---
 
@@ -34,10 +34,11 @@ app/                  крейт zerno: оболочка Tauri 2
     js/                   color, model, doc, ui-kit, history, panels, engine,
                           render, library, transfer, keys, help, boot
 presets/              пресеты из комплекта (генерирует tools/make-presets.js)
-docs/                 эта записка
+docs/                 эта записка; images/ — картинки README (tools/make-readme-images.js)
 package.json          jsdom для проверок интерфейса (npm install)
 tests/                проверки на Node; tests/reference — эталон на JS
-tools/                make-presets.js — пресеты, make-icon.js — иконка (кофейное зерно)
+tools/                make-presets.js — пресеты, make-icon.js — иконка (кофейное зерно),
+                      make-readme-images.js — картинки README
 ```
 
 Правило раскладки: у каждой папки одно назначение. Rust — `engine/` и `app/`,

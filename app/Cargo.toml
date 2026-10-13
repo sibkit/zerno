@@ -2,6 +2,8 @@
 name = "zerno"
 version = "2.0.0"
 edition = "2024"
+license = "MIT"
+repository = "https://github.com/sibkit/zerno"
 description = "ЗЕРНО — генератор бесшовного шума для фона (Tauri)"
 
 [build-dependencies]
