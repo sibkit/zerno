@@ -37,7 +37,7 @@ presets/              пресеты из комплекта (генерируе
 docs/                 эта записка
 package.json          jsdom для проверок интерфейса (npm install)
 tests/                проверки на Node; tests/reference — эталон на JS
-tools/                make-presets.js — пресеты, make-icon.js — иконка
+tools/                make-presets.js — пресеты, make-icon.js — иконка (кофейное зерно)
 ```
 
 Правило раскладки: у каждой папки одно назначение. Rust — `engine/` и `app/`,
